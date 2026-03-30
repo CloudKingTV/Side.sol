@@ -458,11 +458,11 @@ export default function App() {
   }, [friends, vips, bmarks, rsvps, checkins, incog, user]);
 
   const syncTimer = useRef(null);
-  const dataLoaded = useRef(false);
   useEffect(() => {
-    if (!ready || !user?.supaId || !hasSupabase()) return;
-    // Skip the first sync (loading data triggers state changes, don't write them back)
-    if (!dataLoaded.current) { dataLoaded.current = true; return; }
+    if (!ready) { console.log("[sync-effect] not ready"); return; }
+    if (!user?.supaId) { console.log("[sync-effect] no supaId, user:", user?.name, user?.supaId); return; }
+    if (!hasSupabase()) { console.log("[sync-effect] no supabase"); return; }
+    console.log("[sync-effect] scheduling sync, friends:", friends.length);
     clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(syncToSupabase, 500);
   }, [friends, vips, bmarks, rsvps, checkins, incog, ready, user, syncToSupabase]);
