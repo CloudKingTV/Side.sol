@@ -309,8 +309,19 @@ export default function App() {
   const loadUserData = useCallback(async (uid) => {
     if (!uid || !hasSupabase()) return;
     try {
-      const data = await db.loadUserData(uid);
-      if (!data) return;
+      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+      const token = session?.access_token || supaKey;
+
+      const res = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${uid}&select=friends_data,vips_data,bmarks_data,rsvps_data,checkins_data,incog_data`, {
+        headers: { "apikey": supaKey, "Authorization": `Bearer ${token}` },
+      });
+      if (!res.ok) { console.error("[load] FAILED:", res.status); return; }
+      const rows = await res.json();
+      const data = rows?.[0];
+      if (!data) { console.log("[load] no profile data yet"); return; }
+      console.log("[load] loaded from Supabase, friends:", data.friends_data?.length || 0);
       if (data.friends_data?.length) setFriends(data.friends_data);
       if (data.vips_data?.length) setVips(data.vips_data);
       if (data.bmarks_data?.length) setBmarks(data.bmarks_data);
@@ -450,14 +461,26 @@ export default function App() {
     syncTimer.current = setTimeout(async () => {
       console.log("[sync] saving, uid:", uid, "friends:", friends.length);
       try {
-        // Try upsert (insert or update) — avoids needing to check if row exists
-        const { error } = await supabase.from("profiles").upsert({
-          id: uid, name: user?.name || "Anon", handle: user?.handle || "",
-          pfp: user?.pfp || "", method: user?.method || "email",
-          friends_data: friends, vips_data: vips, bmarks_data: bmarks,
-          rsvps_data: rsvps, checkins_data: checkins, incog_data: incog,
-        }, { onConflict: "id" });
-        console.log("[sync]", error ? `FAILED: ${error.code} ${error.message}` : "SUCCESS");
+        // Use raw fetch to bypass any Supabase client issues
+        const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+        const token = session?.access_token || supaKey;
+
+        const res = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${uid}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": supaKey,
+            "Authorization": `Bearer ${token}`,
+            "Prefer": "return=minimal",
+          },
+          body: JSON.stringify({
+            friends_data: friends, vips_data: vips, bmarks_data: bmarks,
+            rsvps_data: rsvps, checkins_data: checkins, incog_data: incog,
+          }),
+        });
+        console.log("[sync]", res.ok ? "SUCCESS" : `FAILED: ${res.status} ${await res.text()}`);
       } catch(e) { console.error("[sync] EXCEPTION:", e); }
     }, 500);
   }, [friends, vips, bmarks, rsvps, checkins, incog, ready, user]);
