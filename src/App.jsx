@@ -365,15 +365,17 @@ export default function App() {
           };
           setUser(fallbackUser);
           saveState("user", fallbackUser);
-          // Try to upsert profile + load user data (non-blocking)
+          // Ensure profile row exists in Supabase (required for data sync)
           try {
-            const profile = await db.upsertProfile({
+            const { error } = await supabase.from("profiles").upsert({
               id: u.id, name: fallbackUser.name, handle: fallbackUser.handle,
               pfp: fallbackUser.pfp, method: fallbackUser.method,
-            });
-            if (profile) setUser({ ...profile, supaId: u.id });
-          } catch(e) { console.error("Profile upsert error:", e); }
+            }, { onConflict: "id" });
+            if (error) console.error("Profile upsert failed:", error.message, error.details, error.hint);
+          } catch(e) { console.error("Profile upsert exception:", e); }
+          // Load user data from Supabase
           try { await loadUserData(u.id); } catch(e) { console.error("Load user data error:", e); }
+          dataLoaded.current = true;
           // Clean up OAuth hash from URL
           if (window.location.hash.includes("access_token")) {
             window.history.replaceState(null, "", window.location.pathname);
@@ -438,22 +440,38 @@ export default function App() {
   useEffect(() => { if (ready) saveState("privacy", privacy); }, [privacy, ready]);
   useEffect(() => { if (ready) { saveState("dark", dark); document.documentElement.style.background = dark ? "#0c0c14" : "#F5F3EE"; } }, [dark, ready]);
 
-  // ── Sync user data to Supabase (debounced) ──
-  const syncTimer = useRef(null);
-  useEffect(() => {
-    if (!ready || !user?.supaId || !hasSupabase()) return;
-    clearTimeout(syncTimer.current);
-    syncTimer.current = setTimeout(() => {
-      db.saveUserData(user.supaId, {
+  // ── Sync user data to Supabase ──
+  const syncToSupabase = useCallback(async () => {
+    if (!user?.supaId || !hasSupabase()) return;
+    try {
+      const { error } = await supabase.from("profiles").update({
         friends_data: friends,
         vips_data: vips,
         bmarks_data: bmarks,
         rsvps_data: rsvps,
         checkins_data: checkins,
         incog_data: incog,
-      });
-    }, 1000); // debounce 1s to avoid spamming
-  }, [friends, vips, bmarks, rsvps, checkins, incog, ready, user]);
+      }).eq("id", user.supaId);
+      if (error) console.error("Sync failed:", error.message);
+    } catch(e) { console.error("Sync error:", e); }
+  }, [friends, vips, bmarks, rsvps, checkins, incog, user]);
+
+  const syncTimer = useRef(null);
+  const dataLoaded = useRef(false);
+  useEffect(() => {
+    if (!ready || !user?.supaId || !hasSupabase()) return;
+    // Skip the first sync (loading data triggers state changes, don't write them back)
+    if (!dataLoaded.current) { dataLoaded.current = true; return; }
+    clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(syncToSupabase, 500);
+  }, [friends, vips, bmarks, rsvps, checkins, incog, ready, user, syncToSupabase]);
+
+  // Also sync immediately on visibility change (tab switch / app background)
+  useEffect(() => {
+    const handleVisChange = () => { if (document.visibilityState === "hidden") syncToSupabase(); };
+    document.addEventListener("visibilitychange", handleVisChange);
+    return () => document.removeEventListener("visibilitychange", handleVisChange);
+  }, [syncToSupabase]);
 
   // ── Quest logic ──
   const completedQuests = useMemo(() => {
