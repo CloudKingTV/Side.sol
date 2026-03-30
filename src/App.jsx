@@ -450,17 +450,32 @@ export default function App() {
     syncTimer.current = setTimeout(async () => {
       console.log("[sync] saving, uid:", uid, "friends:", friends.length);
       try {
-        const payload = {
-          friends_data: friends,
-          vips_data: vips,
-          bmarks_data: bmarks,
-          rsvps_data: rsvps,
-          checkins_data: checkins,
-          incog_data: incog,
-        };
-        const { data, error } = await supabase.from("profiles").update(payload).eq("id", uid).select("id").single();
-        if (error) console.error("[sync] FAILED:", error.code, error.message, error.details);
-        else console.log("[sync] SUCCESS, id:", data?.id, "friends:", friends.length);
+        // First check: do we have a valid session?
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log("[sync] session:", session ? "yes" : "NO SESSION");
+        if (!session) { console.error("[sync] no auth session — can't sync"); return; }
+
+        // Check if profile row exists
+        const { data: existing, error: fetchErr } = await supabase.from("profiles").select("id").eq("id", uid).single();
+        console.log("[sync] profile exists:", existing ? "yes" : "no", fetchErr?.message || "");
+
+        if (!existing) {
+          // Create the profile row first
+          const { error: insertErr } = await supabase.from("profiles").insert({
+            id: uid, name: user?.name || "Anon", handle: user?.handle || "",
+            pfp: user?.pfp || "", method: user?.method || "email",
+            friends_data: friends, vips_data: vips, bmarks_data: bmarks,
+            rsvps_data: rsvps, checkins_data: checkins, incog_data: incog,
+          });
+          console.log("[sync] INSERT result:", insertErr ? insertErr.message : "SUCCESS");
+        } else {
+          // Update existing profile
+          const { error: updateErr } = await supabase.from("profiles").update({
+            friends_data: friends, vips_data: vips, bmarks_data: bmarks,
+            rsvps_data: rsvps, checkins_data: checkins, incog_data: incog,
+          }).eq("id", uid);
+          console.log("[sync] UPDATE result:", updateErr ? updateErr.message : "SUCCESS");
+        }
       } catch(e) { console.error("[sync] EXCEPTION:", e); }
     }, 500);
   }, [friends, vips, bmarks, rsvps, checkins, incog, ready, user]);
