@@ -305,30 +305,18 @@ export default function App() {
   const { toasts, push: toast } = useToast();
 
   // ── Load data (Supabase → localStorage fallback) ──
-  // Helper: load user-specific data from Supabase
+  // Helper: load user-specific data from Supabase profile JSON
   const loadUserData = useCallback(async (uid) => {
     if (!uid || !hasSupabase()) return;
     try {
-      const [r, c, b, inc, fr] = await Promise.all([
-        db.fetchRsvps(uid), db.fetchCheckins(uid),
-        db.fetchBookmarks(uid), db.fetchIncognito(uid),
-        db.fetchFriends(uid),
-      ]);
-      if (r) setRsvps(r);
-      if (c) setCheckins(c);
-      if (b) setBmarks(b);
-      if (inc) setIncog(inc);
-      // Merge Supabase friends with localStorage friends (localStorage has pending + demo users)
-      const localFriends = loadState("friends", []);
-      const supaFriends = fr || [];
-      // Combine: Supabase friends take priority, then add any local-only friends not already present
-      const supaHandles = new Set(supaFriends.map(f => f.handle?.toLowerCase()));
-      const merged = [
-        ...supaFriends,
-        ...localFriends.filter(lf => !supaHandles.has(lf.handle?.toLowerCase())),
-      ];
-      setFriends(merged);
-      setVips(merged.filter(f => f.is_vip).map(f => f.handle));
+      const data = await db.loadUserData(uid);
+      if (!data) return;
+      if (data.friends_data?.length) setFriends(data.friends_data);
+      if (data.vips_data?.length) setVips(data.vips_data);
+      if (data.bmarks_data?.length) setBmarks(data.bmarks_data);
+      if (data.rsvps_data?.length) setRsvps(data.rsvps_data);
+      if (data.checkins_data?.length) setCheckins(data.checkins_data);
+      if (data.incog_data?.length) setIncog(data.incog_data);
     } catch(e) { console.error("loadUserData error:", e); }
   }, []);
 
@@ -449,6 +437,23 @@ export default function App() {
   useEffect(() => { if (ready) saveState("vips", vips); }, [vips, ready]);
   useEffect(() => { if (ready) saveState("privacy", privacy); }, [privacy, ready]);
   useEffect(() => { if (ready) { saveState("dark", dark); document.documentElement.style.background = dark ? "#0c0c14" : "#F5F3EE"; } }, [dark, ready]);
+
+  // ── Sync user data to Supabase (debounced) ──
+  const syncTimer = useRef(null);
+  useEffect(() => {
+    if (!ready || !user?.supaId || !hasSupabase()) return;
+    clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => {
+      db.saveUserData(user.supaId, {
+        friends_data: friends,
+        vips_data: vips,
+        bmarks_data: bmarks,
+        rsvps_data: rsvps,
+        checkins_data: checkins,
+        incog_data: incog,
+      });
+    }, 1000); // debounce 1s to avoid spamming
+  }, [friends, vips, bmarks, rsvps, checkins, incog, ready, user]);
 
   // ── Quest logic ──
   const completedQuests = useMemo(() => {

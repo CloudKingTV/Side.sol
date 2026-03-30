@@ -11,6 +11,31 @@ function saveLocal(key, value) {
 }
 
 // ════════════════════════════════════════
+// USER DATA (synced via profile JSON columns)
+// ════════════════════════════════════════
+// Save all user-specific data to the profile row
+export async function saveUserData(userId, data) {
+  if (!hasSupabase() || !userId) return;
+  const { error } = await supabase
+    .from("profiles")
+    .update(data)
+    .eq("id", userId);
+  if (error) console.error("saveUserData:", error);
+}
+
+// Load all user-specific data from the profile row
+export async function loadUserData(userId) {
+  if (!hasSupabase() || !userId) return null;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("friends_data, vips_data, bmarks_data, rsvps_data, checkins_data, incog_data")
+    .eq("id", userId)
+    .single();
+  if (error) { console.error("loadUserData:", error); return null; }
+  return data;
+}
+
+// ════════════════════════════════════════
 // EVENTS
 // ════════════════════════════════════════
 export async function fetchEvents(conf) {
