@@ -305,110 +305,53 @@ export default function App() {
   const { toasts, push: toast } = useToast();
 
   // ── Load data (Supabase → localStorage fallback) ──
+  // Helper: load user-specific data from Supabase
+  const loadUserData = useCallback(async (uid) => {
+    if (!uid || !hasSupabase()) return;
+    try {
+      const [r, c, b, inc, fr] = await Promise.all([
+        db.fetchRsvps(uid), db.fetchCheckins(uid),
+        db.fetchBookmarks(uid), db.fetchIncognito(uid),
+        db.fetchFriends(uid),
+      ]);
+      if (r) setRsvps(r);
+      if (c) setCheckins(c);
+      if (b) setBmarks(b);
+      if (inc) setIncog(inc);
+      if (fr) { setFriends(fr); setVips(fr.filter(f => f.is_vip).map(f => f.handle)); }
+    } catch(e) { console.error("loadUserData error:", e); }
+  }, []);
+
   useEffect(() => {
-    const loadData = async () => {
-      // Always load UI prefs from localStorage
-      setDark(loadState("dark", false));
-      if (!loadState("onboarded", false)) setShowOnboarding(true);
+    // Step 1: Load UI prefs + public data immediately → setReady
+    setDark(loadState("dark", false));
+    if (!loadState("onboarded", false)) setShowOnboarding(true);
 
-      try {
-        if (hasSupabase()) {
-          // If URL has auth tokens (OAuth redirect), wait for Supabase to process them
-          const hash = window.location.hash;
-          if (hash && (hash.includes("access_token") || hash.includes("error"))) {
-            // Supabase auto-detects tokens in hash via detectSessionInUrl
-            // Wait briefly for it to process, then clean URL
-            await new Promise(r => setTimeout(r, 500));
-            window.history.replaceState(null, "", window.location.pathname);
-          }
+    if (hasSupabase()) {
+      // Load public events from Supabase
+      db.fetchEvents(conf).then(evs => {
+        if (evs && evs.length > 0) setEvents(evs);
+        else setEvents(loadState("events", null) || SEED);
+      }).catch(() => setEvents(loadState("events", null) || SEED));
+    } else {
+      // No Supabase: load everything from localStorage
+      setEvents(loadState("events", null) || SEED);
+      setUser(loadState("user", null));
+      setBmarks(loadState("bmarks", []));
+      setRsvps(loadState("rsvps", []));
+      setCheckins(loadState("checkins", []));
+      setFriends(loadState("friends", []));
+      setIncog(loadState("incog", []));
+      setPrivacy(loadState("privacy", { profilePublic: false }));
+      setVips(loadState("vips", []));
+    }
+    setReady(true);
 
-          // Check for Supabase auth session
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            try {
-              const profile = await db.upsertProfile({
-                id: session.user.id,
-                name: session.user.user_metadata?.name || session.user.user_metadata?.full_name || "Anon",
-                handle: session.user.user_metadata?.user_name ? `@${session.user.user_metadata.user_name}` : session.user.email,
-                pfp: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || "",
-                method: session.user.app_metadata?.provider === "x" ? "x" : "email",
-              });
-              if (profile) setUser({ ...profile, supaId: session.user.id });
-            } catch(e) { console.error("Profile upsert error:", e); }
-          }
-
-          // Load from Supabase
-          const uid = session?.user?.id;
-          try {
-            const evs = await db.fetchEvents(conf);
-            if (evs && evs.length > 0) setEvents(evs);
-            else setEvents(loadState("events", null) || SEED);
-          } catch(e) { console.error("Events fetch error:", e); setEvents(loadState("events", null) || SEED); }
-
-          if (uid) {
-            try {
-              const [r, c, b, inc] = await Promise.all([
-                db.fetchRsvps(uid), db.fetchCheckins(uid),
-                db.fetchBookmarks(uid), db.fetchIncognito(uid),
-              ]);
-              if (r) setRsvps(r);
-              if (c) setCheckins(c);
-              if (b) setBmarks(b);
-              if (inc) setIncog(inc);
-            } catch(e) { console.error("User data fetch error:", e); }
-            try {
-              const fr = await db.fetchFriends(uid);
-              if (fr) {
-                setFriends(fr);
-                setVips(fr.filter(f => f.is_vip).map(f => f.handle));
-              }
-            } catch(e) { console.error("Friends fetch error:", e); }
-          }
-        } else {
-          // Fallback: load everything from localStorage
-          setEvents(loadState("events", null) || SEED);
-          setUser(loadState("user", null));
-          setBmarks(loadState("bmarks", []));
-          setRsvps(loadState("rsvps", []));
-          setCheckins(loadState("checkins", []));
-          setFriends(loadState("friends", []));
-          setIncog(loadState("incog", []));
-          setPrivacy(loadState("privacy", { profilePublic: false }));
-          setVips(loadState("vips", []));
-
-          // Auth0 callback (only when no Supabase)
-          try {
-            const auth0 = await getAuth0();
-            if (auth0) {
-              const query = window.location.search;
-              if (query.includes("code=") && query.includes("state=")) {
-                await auth0.handleRedirectCallback();
-                window.history.replaceState(null, "", window.location.pathname);
-                const auth0User = await auth0.getUser();
-                if (auth0User) {
-                  const xUser = {
-                    name: auth0User.name || auth0User.nickname || "Anon",
-                    handle: auth0User.nickname ? `@${auth0User.nickname}` : auth0User.email || "",
-                    pfp: auth0User.picture || "",
-                    method: "x",
-                  };
-                  setUser(xUser);
-                  saveState("user", xUser);
-                  setTimeout(() => toast("Signed in with X!"), 100);
-                }
-              }
-            }
-          } catch(e) { console.error("Auth0 callback error", e); }
-        }
-      } catch(e) { console.error("loadData error:", e); }
-      setReady(true);
-    };
-    loadData();
-
-    // Listen for Supabase auth changes
+    // Step 2: Set up auth listener BEFORE checking session
+    // This catches both: existing sessions on refresh AND new OAuth redirects
     if (hasSupabase()) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user) {
+        if ((event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") && session?.user) {
           try {
             const profile = await db.upsertProfile({
               id: session.user.id,
@@ -418,13 +361,45 @@ export default function App() {
               method: session.user.app_metadata?.provider === "x" ? "x" : "email",
             });
             if (profile) setUser({ ...profile, supaId: session.user.id });
-            if (event === "SIGNED_IN") toast("Signed in!");
+            await loadUserData(session.user.id);
+            // Clean up OAuth hash from URL
+            if (window.location.hash.includes("access_token")) {
+              window.history.replaceState(null, "", window.location.pathname);
+            }
           } catch(e) { console.error("Auth state change error:", e); }
+        } else if (event === "INITIAL_SESSION" && !session) {
+          // No session — user is not signed in, that's fine
         } else if (event === "SIGNED_OUT") {
-          setUser(null);
+          setUser(null); setRsvps([]); setCheckins([]); setBmarks([]); setFriends([]); setVips([]); setIncog([]);
         }
       });
       return () => subscription.unsubscribe();
+    } else {
+      // Auth0 callback (only when no Supabase)
+      (async () => {
+        try {
+          const auth0 = await getAuth0();
+          if (auth0) {
+            const query = window.location.search;
+            if (query.includes("code=") && query.includes("state=")) {
+              await auth0.handleRedirectCallback();
+              window.history.replaceState(null, "", window.location.pathname);
+              const auth0User = await auth0.getUser();
+              if (auth0User) {
+                const xUser = {
+                  name: auth0User.name || auth0User.nickname || "Anon",
+                  handle: auth0User.nickname ? `@${auth0User.nickname}` : auth0User.email || "",
+                  pfp: auth0User.picture || "",
+                  method: "x",
+                };
+                setUser(xUser);
+                saveState("user", xUser);
+                setTimeout(() => toast("Signed in with X!"), 100);
+              }
+            }
+          }
+        } catch(e) { console.error("Auth0 callback error", e); }
+      })();
     }
     // Deep link: open event from URL hash
     const hash = window.location.hash;
