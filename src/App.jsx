@@ -441,7 +441,6 @@ export default function App() {
   useEffect(() => { if (ready) { saveState("dark", dark); document.documentElement.style.background = dark ? "#0c0c14" : "#F5F3EE"; } }, [dark, ready]);
 
   // ── Sync user data to Supabase ──
-  // ── Sync user data to Supabase ──
   const syncTimer = useRef(null);
   useEffect(() => {
     if (!ready || !hasSupabase()) return;
@@ -449,18 +448,19 @@ export default function App() {
     if (!uid) return;
     clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(async () => {
-      console.log("[sync] saving to Supabase, uid:", uid, "friends:", friends.length);
+      console.log("[sync] saving, uid:", uid, "friends:", friends.length);
       try {
-        const { error, count } = await supabase.from("profiles").update({
+        const payload = {
           friends_data: friends,
           vips_data: vips,
           bmarks_data: bmarks,
           rsvps_data: rsvps,
           checkins_data: checkins,
           incog_data: incog,
-        }).eq("id", uid);
-        if (error) console.error("[sync] FAILED:", error.message, error.details, error.hint, error.code);
-        else console.log("[sync] SUCCESS, friends:", friends.length);
+        };
+        const { data, error } = await supabase.from("profiles").update(payload).eq("id", uid).select("id").single();
+        if (error) console.error("[sync] FAILED:", error.code, error.message, error.details);
+        else console.log("[sync] SUCCESS, id:", data?.id, "friends:", friends.length);
       } catch(e) { console.error("[sync] EXCEPTION:", e); }
     }, 500);
   }, [friends, vips, bmarks, rsvps, checkins, incog, ready, user]);
