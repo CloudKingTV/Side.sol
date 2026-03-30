@@ -107,11 +107,15 @@ const gid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6
 const ACOLORS = ["#9945FF","#14F195","#F9AB00","#4285F4","#EC407A","#FF7043","#26A69A","#AB47BC"];
 const uc = (h) => { let n=0; for(let i=0;i<(h||"").length;i++) n+=h.charCodeAt(i); return ACOLORS[n%ACOLORS.length]; };
 
-const Avatar = ({name,s=32,bg}) => (
+const Avatar = ({name,s=32,bg,pfp}) => (
   <div style={{width:s+4,height:s+4,borderRadius:"50%",background:bg?"transparent":"linear-gradient(135deg,#9945FF44,#14F19544)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:2}}>
-    <div style={{width:s,height:s,borderRadius:"50%",background:bg||"linear-gradient(135deg,#9945FF,#14F195)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:s*.36,fontWeight:800,fontFamily:"var(--fd)",boxShadow:"0 2px 8px rgba(0,0,0,.1)"}}>
-      {(name||"?")[0].toUpperCase()}
-    </div>
+    {pfp ? (
+      <img src={pfp} alt={name} style={{width:s,height:s,borderRadius:"50%",objectFit:"cover",boxShadow:"0 2px 8px rgba(0,0,0,.1)"}}/>
+    ) : (
+      <div style={{width:s,height:s,borderRadius:"50%",background:bg||"linear-gradient(135deg,#9945FF,#14F195)",display:"flex",alignItems:"center",justifyContent:"center",color:"white",fontSize:s*.36,fontWeight:800,fontFamily:"var(--fd)",boxShadow:"0 2px 8px rgba(0,0,0,.1)"}}>
+        {(name||"?")[0].toUpperCase()}
+      </div>
+    )}
   </div>
 );
 
@@ -265,6 +269,22 @@ export default function App() {
     setPrivacy(loadState("privacy", { profilePublic: false }));
     setDark(loadState("dark", false));
     setReady(true);
+    // X OAuth callback: check for x_auth param
+    const urlParams = new URLSearchParams(window.location.search);
+    const xAuth = urlParams.get("x_auth");
+    const authError = urlParams.get("auth_error");
+    if (xAuth) {
+      try {
+        const xUser = JSON.parse(decodeURIComponent(xAuth));
+        setUser(xUser);
+        saveState("user", xUser);
+        window.history.replaceState(null, "", window.location.pathname);
+        setTimeout(() => toast("Signed in with X!"), 100);
+      } catch(e) { console.error("Failed to parse X auth data", e); }
+    } else if (authError) {
+      window.history.replaceState(null, "", window.location.pathname);
+      setTimeout(() => toast("Sign in failed — try again", "error"), 100);
+    }
     // Deep link: open event from URL hash
     const hash = window.location.hash;
     if (hash.startsWith("#event=")) {
@@ -404,11 +424,12 @@ export default function App() {
   };
 
   const handleAuth = (method) => {
-    if (method === "x") { setUser({ name: "CloudKing", handle: "@CloudKingTV", method: "x" }); }
-    else {
-      if (!af.email) { toast("Email required", "error"); return; }
-      setUser({ name: af.name || "Anon", handle: af.email, method: "email" });
+    if (method === "x") {
+      window.location.href = "/api/auth/twitter";
+      return;
     }
+    if (!af.email) { toast("Email required", "error"); return; }
+    setUser({ name: af.name || "Anon", handle: af.email, method: "email" });
     setShowAuth(false);
     setAf({ email: "", name: "" });
     toast("Signed in!");
@@ -1016,7 +1037,7 @@ export default function App() {
           <div className="profile-hero-bg"/>
           <div style={{position:"relative",zIndex:1}}>
             <div style={{display:"flex",alignItems:"center",gap:14}}>
-              <Avatar name={user.name} s={54}/>
+              <Avatar name={user.name} s={54} pfp={user.pfp}/>
               <div style={{flex:1}}>
                 <h2 style={{fontSize:20,fontWeight:800,color:"white",fontFamily:"var(--fd)",letterSpacing:"-.3px"}}>{user.name}</h2>
                 <p style={{fontSize:12.5,color:"rgba(255,255,255,.55)",display:"flex",alignItems:"center",gap:4,marginTop:2}}>{user.method==="x"&&<XI s={11}/>}{user.handle}</p>
@@ -1395,7 +1416,7 @@ export default function App() {
             <button className="ib" onClick={() => setDark(d => !d)} style={{fontSize:16,width:34,height:34,borderRadius:10}} title="Toggle dark mode">{dark ? "☀️" : "🌙"}</button>
             {user ? (
               <button onClick={() => setView("profile")} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 16px 7px 7px",borderRadius:100,background:dark?"var(--surface2)":"var(--dark)",color:dark?"var(--text)":"white",border:dark?"1px solid var(--border)":"none",cursor:"pointer",fontSize:12.5,fontWeight:700,fontFamily:"var(--fd)",boxShadow:"var(--sh-sm)",transition:"all .25s cubic-bezier(.16,1,.3,1)"}}>
-                <div style={{width:24,height:24,borderRadius:"50%",background:"linear-gradient(135deg,#9945FF,#14F195)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"white"}}>{user.name[0]}</div>
+                {user.pfp ? <img src={user.pfp} alt="" style={{width:24,height:24,borderRadius:"50%",objectFit:"cover"}}/> : <div style={{width:24,height:24,borderRadius:"50%",background:"linear-gradient(135deg,#9945FF,#14F195)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"white"}}>{user.name[0]}</div>}
                 {user.name}
                 <span style={{fontSize:10,color:"#14F195",fontFamily:"var(--fm)",background:"rgba(20,241,149,.12)",padding:"2px 8px",borderRadius:100,border:"1px solid rgba(20,241,149,.12)",animation:"subtleBounce 2s ease infinite"}}>{totalXP}</span>
               </button>
