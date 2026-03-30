@@ -313,8 +313,17 @@ export default function App() {
 
       try {
         if (hasSupabase()) {
+          // If URL has auth tokens (OAuth redirect), wait for Supabase to process them
+          const hash = window.location.hash;
+          if (hash && (hash.includes("access_token") || hash.includes("error"))) {
+            // Supabase auto-detects tokens in hash via detectSessionInUrl
+            // Wait briefly for it to process, then clean URL
+            await new Promise(r => setTimeout(r, 500));
+            window.history.replaceState(null, "", window.location.pathname);
+          }
+
           // Check for Supabase auth session
-          const session = await db.getSession();
+          const { data: { session } } = await supabase.auth.getSession();
           if (session?.user) {
             try {
               const profile = await db.upsertProfile({
@@ -399,16 +408,18 @@ export default function App() {
     // Listen for Supabase auth changes
     if (hasSupabase()) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === "SIGNED_IN" && session?.user) {
-          const profile = await db.upsertProfile({
-            id: session.user.id,
-            name: session.user.user_metadata?.name || session.user.user_metadata?.full_name || "Anon",
-            handle: session.user.user_metadata?.user_name ? `@${session.user.user_metadata.user_name}` : session.user.email,
-            pfp: session.user.user_metadata?.avatar_url || "",
-            method: session.user.app_metadata?.provider === "twitter" ? "x" : "email",
-          });
-          if (profile) setUser({ ...profile, supaId: session.user.id });
-          toast("Signed in!");
+        if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && session?.user) {
+          try {
+            const profile = await db.upsertProfile({
+              id: session.user.id,
+              name: session.user.user_metadata?.name || session.user.user_metadata?.full_name || "Anon",
+              handle: session.user.user_metadata?.user_name ? `@${session.user.user_metadata.user_name}` : session.user.email,
+              pfp: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || "",
+              method: session.user.app_metadata?.provider === "x" ? "x" : "email",
+            });
+            if (profile) setUser({ ...profile, supaId: session.user.id });
+            if (event === "SIGNED_IN") toast("Signed in!");
+          } catch(e) { console.error("Auth state change error:", e); }
         } else if (event === "SIGNED_OUT") {
           setUser(null);
         }
