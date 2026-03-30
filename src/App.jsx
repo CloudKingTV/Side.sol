@@ -328,6 +328,9 @@ export default function App() {
     if (!loadState("onboarded", false)) setShowOnboarding(true);
 
     if (hasSupabase()) {
+      // Show cached user instantly while Supabase loads
+      const cachedUser = loadState("user", null);
+      if (cachedUser) setUser(cachedUser);
       // Load public events from Supabase
       db.fetchEvents(conf).then(evs => {
         if (evs && evs.length > 0) setEvents(evs);
@@ -363,6 +366,7 @@ export default function App() {
             method: u.app_metadata?.provider === "x" ? "x" : "email",
           };
           setUser(fallbackUser);
+          saveState("user", fallbackUser);
           // Try to upsert profile + load user data (non-blocking)
           try {
             const profile = await db.upsertProfile({
@@ -379,7 +383,7 @@ export default function App() {
         } else if (event === "INITIAL_SESSION" && !session) {
           // No session — user is not signed in, that's fine
         } else if (event === "SIGNED_OUT") {
-          setUser(null); setRsvps([]); setCheckins([]); setBmarks([]); setFriends([]); setVips([]); setIncog([]);
+          setUser(null); saveState("user", null); setRsvps([]); setCheckins([]); setBmarks([]); setFriends([]); setVips([]); setIncog([]);
         }
       });
       return () => subscription.unsubscribe();
