@@ -289,6 +289,8 @@ export default function App() {
   const [showSubmit, setShowSubmit] = useState(false);
   const [editing, setEditing] = useState(null);
   const [showSort, setShowSort] = useState(false);
+  const sortRef = useRef(null);
+  useEffect(() => { if (!showSort) return; const h = (e) => { if (sortRef.current && !sortRef.current.contains(e.target)) setShowSort(false); }; document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, [showSort]);
   const [af, setAf] = useState({ email: "", name: "" });
   const [profTab, setProfTab] = useState("quests");
   const [friendView, setFriendView] = useState(null);
@@ -301,6 +303,8 @@ export default function App() {
   const [friendsTab, setFriendsTab] = useState("people");
   const [notableFilter, setNotableFilter] = useState("All");
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardStep, setOnboardStep] = useState(0);
   const [dark, setDark] = useState(false);
   const { toasts, push: toast } = useToast();
 
@@ -316,6 +320,7 @@ export default function App() {
     setPrivacy(loadState("privacy", { profilePublic: false }));
     setDark(loadState("dark", false));
     setVips(loadState("vips", []));
+    if (!loadState("onboarded", false)) setShowOnboarding(true);
     setReady(true);
     // Auth0 callback: handle redirect after login
     (async () => {
@@ -436,6 +441,8 @@ export default function App() {
       setEvents(es => es.map(e => e.id === id ? { ...e, att: Math.max(0, (e.att||1) - 1) } : e));
       toast("RSVP cancelled");
     } else {
+      const ev = events.find(e => e.id === id);
+      if (ev && ev.capacity && (ev.att||0) >= ev.capacity) { toast("Event is full", "error"); return; }
       const newRsvps = [...rsvps, id];
       setRsvps(newRsvps);
       setEvents(es => es.map(e => e.id === id ? { ...e, att: (e.att||0) + 1 } : e));
@@ -476,11 +483,15 @@ export default function App() {
   };
 
   const addFriend = (h) => {
-    const u = FAKE_USERS.find(f => f.handle.toLowerCase() === h.toLowerCase());
-    if (!u) { toast("User not found", "error"); return; }
-    if (friendHandles.includes(u.handle)) { toast("Already friends", "info"); return; }
-    setFriends(f => [...f, u]);
-    toast(`Added ${u.name}!`);
+    const handle = h.startsWith("@") ? h : `@${h}`;
+    if (friendHandles.map(x=>x.toLowerCase()).includes(handle.toLowerCase())) { toast("Already friends", "info"); return; }
+    // Check known users first
+    const known = FAKE_USERS.find(f => f.handle.toLowerCase() === handle.toLowerCase());
+    if (known) { setFriends(f => [...f, known]); toast(`Added ${known.name}!`); return; }
+    // Allow any handle — create a placeholder user
+    const name = handle.slice(1);
+    setFriends(f => [...f, { handle, name, method: "x", role: "", bio: "", notable: false, tags: [] }]);
+    toast(`Added ${name}!`);
   };
 
   const handleAuth = async (method) => {
@@ -508,7 +519,7 @@ export default function App() {
 
   // ── Submit Modal ──
   const SubmitModal = ({ initial, onClose }) => {
-    const [f, sF] = useState(initial || { title:"", cat:"Meetup", date:"", time:"", loc:"", host:"", desc:"", rsvp:false, luma:"", conf, banner:"" });
+    const [f, sF] = useState(initial || { title:"", cat:"Meetup", date:"", time:"", loc:"", host:"", desc:"", rsvp:false, luma:"", conf, banner:"", capacity:0, announcement:"" });
     const [errs, sE] = useState({});
     const isE = !!initial?.id;
     const validate = () => {
@@ -570,10 +581,14 @@ export default function App() {
           <Fld l="Location" req err={errs.loc}><input className="field" placeholder="Venue, address" value={f.loc} onChange={e=>sF({...f,loc:e.target.value})}/></Fld>
           <Fld l="Description"><textarea className="field" rows={3} placeholder="What's it about?" value={f.desc} onChange={e=>sF({...f,desc:e.target.value})}/></Fld>
           <Fld l="RSVP link" err={errs.luma}><input className="field" placeholder="https://lu.ma/..." value={f.luma} onChange={e=>sF({...f,luma:e.target.value})}/></Fld>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div onClick={()=>sF({...f,rsvp:!f.rsvp})} className="tog" data-on={f.rsvp}><div className="tog-t" style={{transform:f.rsvp?"translateX(22px)":"translateX(0)"}}/></div>
-            <span style={{fontSize:13,fontWeight:600}}>RSVP Required</span>
+          <div className="r2">
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div onClick={()=>sF({...f,rsvp:!f.rsvp})} className="tog" data-on={f.rsvp}><div className="tog-t" style={{transform:f.rsvp?"translateX(22px)":"translateX(0)"}}/></div>
+              <span style={{fontSize:13,fontWeight:600}}>RSVP Required</span>
+            </div>
+            <Fld l="Max capacity"><input className="field" type="number" min="0" placeholder="0 = unlimited" value={f.capacity||""} onChange={e=>sF({...f,capacity:parseInt(e.target.value)||0})}/></Fld>
           </div>
+          {isE && <Fld l="Announcement (visible to attendees)"><input className="field" placeholder="e.g. Venue changed! Now at..." value={f.announcement||""} onChange={e=>sF({...f,announcement:e.target.value})}/></Fld>}
           <button className="btn-glow" onClick={submit}>{isE ? "Save" : "Submit Event"}</button>
         </div>
       </div>
@@ -661,7 +676,7 @@ export default function App() {
               <span className="card-m">📅 {fd(ev.date)}{ev.time ? ` · ${ev.time}` : ""}</span>
               <span className="card-m">📍 {ev.loc}</span>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",justifyContent:"flex-end"}}>
+            <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}}>
               {vg.length > 0 && <span className="vip-badge">⭐ {vg[0].name}{vg.length > 1 ? ` +${vg.length-1}` : ""}</span>}
               {fg.length > 0 && (
                 <div style={{display:"flex",alignItems:"center",gap:4}}>
@@ -669,6 +684,8 @@ export default function App() {
                   <span style={{fontSize:10.5,fontWeight:600,color:"var(--accent)"}}>{fg.length <= 2 ? fg.map(f=>f.name.split(" ")[0]).join(" & ") : `${fg.length} friends`}</span>
                 </div>
               )}
+              {user && !going && <button className="qrsvp" onClick={e => { e.stopPropagation(); togRsvp(ev.id); }}>RSVP</button>}
+              {user && going && !verified && <button className="qrsvp on" onClick={e => { e.stopPropagation(); }}>✓</button>}
               <span className="card-att">👥 {ev.att}</span>
             </div>
           </div>
@@ -722,6 +739,10 @@ export default function App() {
               <div className="info-cell"><span className="info-l">Time</span><span className="info-v">{ev.time || "TBA"}</span></div>
             </div>
             <div className="info-cell" style={{marginBottom:12,animation:"fadeUp .4s .35s both"}}><span className="info-l">Location</span><span className="info-v">{ev.loc}</span></div>
+            {ev.announcement && <div style={{padding:"10px 14px",background:"rgba(249,171,0,.08)",border:"1.5px solid rgba(249,171,0,.2)",borderRadius:14,marginBottom:12,textAlign:"left",animation:"fadeUp .4s .38s both",display:"flex",gap:8,alignItems:"flex-start"}}>
+              <span style={{fontSize:14,flexShrink:0}}>📢</span>
+              <div><p style={{fontSize:10,fontWeight:700,color:"#A66D00",textTransform:"uppercase",letterSpacing:".5px",marginBottom:2,fontFamily:"var(--fm)"}}>Announcement</p><p style={{fontSize:13,color:"var(--text)",lineHeight:1.5}}>{ev.announcement}</p></div>
+            </div>}
             {ev.desc && <p style={{fontSize:13.5,color:"var(--muted)",lineHeight:1.65,marginBottom:12,textAlign:"left",animation:"fadeUp .4s .4s both"}}>{ev.desc}</p>}
             {(fg.length > 0 || notableHere.length > 0) && <>
               <hr className="dashed"/>
@@ -738,7 +759,7 @@ export default function App() {
             </>}
             <hr className="dashed"/>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span className="card-att" style={{fontSize:12}}>👥 {ev.att||0} going</span>
+              <span className="card-att" style={{fontSize:12}}>👥 {ev.att||0}{ev.capacity ? ` / ${ev.capacity}` : ""} going</span>
               <span style={{fontSize:9,color:"#c4c0b8",fontFamily:"var(--fm)",letterSpacing:".5px"}}>SIDE.SOL</span>
             </div>
             <div style={{textAlign:"center",marginTop:8,opacity:.35}}><Barcode/></div>
@@ -752,6 +773,32 @@ export default function App() {
               <div onClick={() => togIncog(ev.id)} className="tog" data-on={isInc}><div className="tog-t" style={{transform:isInc?"translateX(22px)":"translateX(0)"}}/></div>
             </div>
           )}
+
+          {/* RSVP Attendee List (host only) */}
+          {mine && (() => {
+            const rsvpUsers = FAKE_USERS.filter(u => (FAKE_RSVPS[u.handle]||[]).includes(ev.id));
+            const realRsvp = user && rsvps.includes(ev.id) ? [user] : [];
+            const allRsvp = [...realRsvp, ...rsvpUsers];
+            return allRsvp.length > 0 ? (
+              <div style={{marginTop:16,animation:"fadeUp .4s .5s both"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <p className="info-l">RSVP List · {allRsvp.length}{ev.capacity ? ` / ${ev.capacity}` : ""}</p>
+                </div>
+                <div style={{background:"var(--bg)",borderRadius:16,border:"1px solid var(--border)",overflow:"hidden"}}>
+                  {allRsvp.map((u,i) => (
+                    <div key={u.handle||i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:i<allRsvp.length-1?"1px solid var(--border)":"none"}}>
+                      <Avatar name={u.name} s={24} bg={uc(u.handle||"")} pfp={u.pfp}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <p style={{fontSize:13,fontWeight:600,fontFamily:"var(--fd)"}}>{u.name}</p>
+                        {u.role && <p style={{fontSize:10,color:"var(--muted)"}}>{u.role}</p>}
+                      </div>
+                      <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--fm)"}}>{u.handle}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null;
+          })()}
 
           <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16,animation:"fadeUp .4s .55s both"}}>
             {user && going && !verified && (
@@ -920,15 +967,32 @@ export default function App() {
 
   const renderPulse = () => {
     const trending = [...cevs].sort((a,b) => (b.att||0) - (a.att||0)).slice(0,5);
+    // Build real activity feed from user actions
+    const myActivity = [];
+    if (user) {
+      rsvps.forEach(eid => { const ev = events.find(e => e.id === eid); if (ev) myActivity.push({u:user.name,a:"RSVP'd to",e:ev.id,t:"recent",pfp:user.pfp}); });
+      checkins.forEach(eid => { const ev = events.find(e => e.id === eid); if (ev) myActivity.push({u:user.name,a:"checked in at",e:ev.id,t:"recent",pfp:user.pfp}); });
+      completedQuests.forEach(qid => { const q = QUESTS.find(qq => qq.id === qid); if (q) myActivity.push({u:user.name,a:"completed",q:`${q.icon} ${q.title}`,t:"recent",pfp:user.pfp}); });
+    }
+    const allActivity = [...myActivity.slice(0,4), ...PULSE];
     return (
       <div className="anim-in">
         <h1 className="vt" style={{marginTop:18}}>⚡ Live Pulse</h1>
         <p className="vs">Real-time conference activity</p>
         <PulseTicker events={events}/>
-        <p className="section-label" style={{marginTop:20}}>Trending Now</p>
+
+        {/* Your Stats */}
+        {user && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,margin:"16px 0"}}>
+          <div className="stat-box"><p className="stat-num" style={{color:"var(--accent)"}}>{rsvps.length}</p><p className="stat-label">Your RSVPs</p></div>
+          <div className="stat-box"><p className="stat-num" style={{color:"var(--accent2)"}}>{checkins.length}</p><p className="stat-label">Check-ins</p></div>
+          <div className="stat-box"><p className="stat-num">{completedQuests.length}</p><p className="stat-label">Quests</p></div>
+        </div>}
+
+        <p className="section-label" style={{marginTop:16}}>Trending Now</p>
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {trending.map((ev,i) => {
             const cat = CATS[ev.cat] || CATS.Other;
+            const fg = fGoing(ev.id);
             return (
               <div key={ev.id} className="ev-card" style={{background:cbg(cat),borderLeft:`4px solid ${cat.ac}`,cursor:"pointer",animation:`cardIn .5s cubic-bezier(.16,1,.3,1) ${i*0.08}s both`}} onClick={() => setSel(ev)}>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -936,6 +1000,7 @@ export default function App() {
                   <div style={{flex:1,minWidth:0}}>
                     <h4 className="card-t-sm">{ev.title}</h4>
                     <span className="card-m">{fd(ev.date)} · {ev.host}</span>
+                    {fg.length > 0 && <span style={{fontSize:10,color:"var(--accent)",fontWeight:600,display:"block",marginTop:2}}>👥 {fg.map(f=>f.name.split(" ")[0]).join(", ")} going</span>}
                   </div>
                   <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end"}}>
                     <span style={{fontSize:18,fontWeight:800,fontFamily:"var(--fm)",color:"var(--heading)"}}>{ev.att}</span>
@@ -946,14 +1011,14 @@ export default function App() {
             );
           })}
         </div>
-        <p className="section-label" style={{marginTop:24}}>Recent Activity</p>
+        <p className="section-label" style={{marginTop:24}}>Activity Feed</p>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {PULSE.map((p,i) => (
+          {allActivity.map((p,i) => (
             <div key={i} className="act-row" style={{animation:`cardIn .4s cubic-bezier(.16,1,.3,1) ${i*0.06}s both`}}>
-              <Avatar name={p.u} s={30} bg={uc(p.u)}/>
+              <Avatar name={p.u} s={30} bg={uc(p.u)} pfp={p.pfp}/>
               <div style={{flex:1,minWidth:0}}>
                 <p style={{fontSize:13,lineHeight:1.4}}><strong style={{fontFamily:"var(--fd)"}}>{p.u}</strong> {p.a} <em style={{color:"var(--accent)",fontStyle:"normal",fontWeight:700}}>{p.e ? events.find(e=>e.id===p.e)?.title : p.q}</em></p>
-                <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--fm)"}}>{p.t} ago</span>
+                <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--fm)"}}>{p.t === "recent" ? "just now" : `${p.t} ago`}</span>
               </div>
             </div>
           ))}
@@ -1099,41 +1164,60 @@ export default function App() {
         </>}
 
         {/* ═══ OVERLAP TAB ═══ */}
-        {friendsTab === "overlap" && <>
-          {rsvps.length === 0 ? (
-            <div className="empty-msg">📍<br/><br/><strong>RSVP to events first</strong><br/>Once you RSVP, we'll show you which friends will be at the same events</div>
-          ) : overlapData.length === 0 ? (
-            <div className="empty-msg">👥<br/><br/><strong>No overlap yet</strong><br/>Add friends to see who'll be at the same events as you</div>
-          ) : <>
-            <p className="section-label">Where you'll see friends · {overlapData.length} events</p>
-            {overlapData.map(({ev, friends: evFriends}, i) => {
-              const cat = CATS[ev.cat] || CATS.Other;
-              const evVips = evFriends.filter(f => vips.includes(f.handle));
-              return (
-                <div key={ev.id} style={{marginBottom:16,animation:`cardIn .4s cubic-bezier(.16,1,.3,1) ${i*0.06}s both`}}>
-                  <div className="ev-card" style={{background:cbg(cat),borderLeft:`4px solid ${cat.ac}`,marginBottom:8}} onClick={() => setSel(ev)}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                      <div>
-                        <span className="pill" style={{background:`${cfg(cat)}14`,color:cfg(cat),fontSize:10,marginBottom:3}}>{cat.em} {ev.cat}</span>
-                        <h4 className="card-t-sm">{ev.title}</h4>
-                        <span className="card-m">{fd(ev.date)} · {ev.time}</span>
+        {friendsTab === "overlap" && (() => {
+          // All events where ANY friend is going (regardless of user RSVP)
+          const friendEvents = cevs.filter(ev => fGoing(ev.id).length > 0).sort((a,b) => a.date.localeCompare(b.date));
+          const myOverlap = friendEvents.filter(ev => rsvps.includes(ev.id));
+          const friendOnly = friendEvents.filter(ev => !rsvps.includes(ev.id));
+
+          const renderOverlapCard = (ev, i) => {
+            const cat = CATS[ev.cat] || CATS.Other;
+            const evFr = fGoing(ev.id);
+            const isGoing = rsvps.includes(ev.id);
+            return (
+              <div key={ev.id} style={{marginBottom:14,animation:`cardIn .4s cubic-bezier(.16,1,.3,1) ${i*0.06}s both`}}>
+                <div className="ev-card" style={{background:cbg(cat),borderLeft:`4px solid ${cat.ac}`,marginBottom:6}} onClick={() => setSel(ev)}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",gap:5,marginBottom:3}}>
+                        <span className="pill" style={{background:`${cfg(cat)}14`,color:cfg(cat),fontSize:10}}>{cat.em} {ev.cat}</span>
+                        {isGoing && <span className="pill going-pill" style={{fontSize:10}}>You're going</span>}
                       </div>
+                      <h4 className="card-t-sm">{ev.title}</h4>
+                      <span className="card-m">{fd(ev.date)} · {ev.time}</span>
                     </div>
-                  </div>
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingLeft:8}}>
-                    {evFriends.map(fr => (
-                      <div key={fr.handle} className={`friend-chip ${vips.includes(fr.handle)?"vip":""}`} onClick={() => setFriendView(fr)} style={{fontSize:12}}>
-                        {vips.includes(fr.handle)&&<span style={{fontSize:9}}>⭐</span>}
-                        <Avatar name={fr.name} s={18} bg={uc(fr.handle)} pfp={fr.pfp}/>
-                        <span>{fr.name.split(" ")[0]}</span>
-                      </div>
-                    ))}
+                    {!isGoing && user && <button className="qrsvp" onClick={e => { e.stopPropagation(); togRsvp(ev.id); }} style={{alignSelf:"center"}}>RSVP</button>}
                   </div>
                 </div>
-              );
-            })}
-          </>}
-        </>}
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingLeft:8}}>
+                  {evFr.map(fr => (
+                    <div key={fr.handle} className={`friend-chip ${vips.includes(fr.handle)?"vip":""}`} onClick={() => setFriendView(fr)} style={{fontSize:12}}>
+                      {vips.includes(fr.handle)&&<span style={{fontSize:9}}>⭐</span>}
+                      <Avatar name={fr.name} s={18} bg={uc(fr.handle)} pfp={fr.pfp}/>
+                      <span>{fr.name.split(" ")[0]}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          };
+
+          return friends.length === 0 ? (
+            <div className="empty-msg">👥<br/><br/><strong>Add friends first</strong><br/>Go to the People tab to add friends, then see where they'll be</div>
+          ) : friendEvents.length === 0 ? (
+            <div className="empty-msg">📍<br/><br/><strong>No friend activity yet</strong><br/>Your friends haven't RSVP'd to any events</div>
+          ) : <>
+            {myOverlap.length > 0 && <>
+              <p className="section-label">📍 You + friends · {myOverlap.length} events</p>
+              {myOverlap.map((ev, i) => renderOverlapCard(ev, i))}
+            </>}
+            {friendOnly.length > 0 && <>
+              <p className="section-label" style={{marginTop:myOverlap.length?20:0}}>👀 Where friends are going · {friendOnly.length}</p>
+              <p style={{fontSize:12,color:"var(--muted)",marginBottom:12,lineHeight:1.5}}>Events your friends are attending — RSVP to join them</p>
+              {friendOnly.map((ev, i) => renderOverlapCard(ev, i))}
+            </>}
+          </>;
+        })()}
 
         {/* ═══ NOTABLE TAB ═══ */}
         {friendsTab === "notable" && <>
@@ -1440,6 +1524,9 @@ export default function App() {
         .card-desc{font-size:12.5px;color:#5e5a54;line-height:1.6;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
         .card-mc{display:flex;flex-direction:column;gap:3px;} .card-m{font-size:10.5px;color:#7a7670;font-family:var(--fm);letter-spacing:-.2px;}
         .card-att{font-size:11px;color:#9e9a90;font-family:var(--fm);font-weight:600;}
+        .qrsvp{padding:4px 12px;border-radius:100px;font-size:10.5px;font-weight:700;border:1.5px solid var(--accent);background:transparent;color:var(--accent);cursor:pointer;font-family:var(--f);transition:all .2s;white-space:nowrap;}
+        .qrsvp:hover{background:var(--accent);color:white;}
+        .qrsvp.on{background:rgba(20,241,149,.1);color:#0A8F5A;border-color:rgba(20,241,149,.3);cursor:default;font-size:12px;padding:3px 10px;}
 
         /* ═══ FORM FIELDS ═══ */
         .field{width:100%;padding:13px 16px;border:1.5px solid var(--border);border-radius:14px;font-size:14.5px;font-family:var(--f);background:var(--surface);color:var(--text);outline:none;transition:all .3s cubic-bezier(.16,1,.3,1);}
@@ -1688,17 +1775,37 @@ export default function App() {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"2px 0 8px"}}>
               <span style={{fontSize:11,color:"var(--muted)",fontFamily:"var(--fm)"}}>{sortedEvs.length} event{sortedEvs.length!==1?"s":""}</span>
               <div style={{display:"flex",alignItems:"center",gap:2}}>
-                {[{id:"grid",icon:"⊞"},{id:"timeline",icon:"☰"},{id:"calendar",icon:"📅"}].map(v => (
+                {[{id:"grid",icon:"⊞"},{id:"timeline",icon:"☰"},{id:"calendar",icon:"📅"},...(user&&rsvps.length>0?[{id:"schedule",icon:"🗓"}]:[])].map(v => (
                   <button key={v.id} className="ib-sm" onClick={() => setLayout(v.id)} style={{opacity:layout===v.id?1:.45,background:layout===v.id?"var(--surface2)":"transparent",fontSize:14}}>{v.icon}</button>
                 ))}
                 <div style={{width:1,height:16,background:"var(--border)",margin:"0 3px"}}/>
-                <div style={{position:"relative"}}>
+                <div style={{position:"relative"}} ref={sortRef}>
                   <button className="ib-sm" onClick={() => setShowSort(!showSort)}>⇅</button>
                   {showSort && <div className="sdrop">{[{id:"date",l:"By date"},{id:"popular",l:"Popular"},{id:"newest",l:"Recent"}].map(s => <button key={s.id} className={`sopt ${sort===s.id?"on":""}`} onClick={() => { setSort(s.id); setShowSort(false); }}>{s.l}{sort===s.id?" ✓":""}</button>)}</div>}
                 </div>
               </div>
             </div>
-            {layout === "calendar" ? renderCalendar()
+            {layout === "schedule" ? (() => {
+              const myEvs = events.filter(e => rsvps.includes(e.id) && e.conf === conf).sort((a,b) => a.date.localeCompare(b.date) || (a.time||"").localeCompare(b.time||""));
+              const myGrouped = {}; myEvs.forEach(e => { (myGrouped[e.date] = myGrouped[e.date] || []).push(e); });
+              return myEvs.length === 0 ? <div className="empty-msg">🗓<br/><br/><strong>No events in your schedule</strong><br/>RSVP to events to build your schedule</div>
+                : <div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,padding:"12px 16px",background:"linear-gradient(135deg,rgba(153,69,255,.06),rgba(20,241,149,.04))",borderRadius:16,border:"1px solid rgba(153,69,255,.1)"}}>
+                    <span style={{fontSize:20}}>🗓</span>
+                    <div><p style={{fontSize:14,fontWeight:700,fontFamily:"var(--fd)"}}>My Schedule</p><p style={{fontSize:11,color:"var(--muted)"}}>{myEvs.length} event{myEvs.length!==1?"s":""} across {Object.keys(myGrouped).length} day{Object.keys(myGrouped).length!==1?"s":""}</p></div>
+                  </div>
+                  {Object.keys(myGrouped).sort().map(date => {
+                    const fg = myGrouped[date].flatMap(ev => fGoing(ev.id));
+                    const uniqueFriends = [...new Map(fg.map(f => [f.handle, f])).values()];
+                    return <div key={date}>
+                      <div className="dh">{dl(date)}<span style={{fontSize:10,background:"var(--surface)",padding:"3px 9px",borderRadius:100,border:"1px solid var(--border)"}}>{myGrouped[date].length}</span></div>
+                      {uniqueFriends.length > 0 && <div style={{display:"flex",gap:4,marginBottom:8,flexWrap:"wrap"}}>{uniqueFriends.slice(0,5).map(fr => <span key={fr.handle} style={{fontSize:10,color:"var(--accent)",fontWeight:600}}>👥 {fr.name.split(" ")[0]}</span>)}{uniqueFriends.length > 5 && <span style={{fontSize:10,color:"var(--muted)"}}>+{uniqueFriends.length-5} more</span>}</div>}
+                      <div style={{display:"flex",flexDirection:"column",gap:10}}>{myGrouped[date].map((ev,i) => renderCard(ev,i,true))}</div>
+                    </div>;
+                  })}
+                </div>;
+            })()
+            : layout === "calendar" ? renderCalendar()
             : sortedEvs.length === 0 ? <div className="empty-msg">🔍<br/><br/><strong style={{fontSize:16}}>No events found</strong><br/>Try adjusting your filters</div>
               : layout === "grid" ? <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>{sortedEvs.map((ev,i) => renderCard(ev,i,false))}</div>
               : <div>{Object.keys(grouped).sort().map(date => <div key={date}><div className="dh">{dl(date)}<span style={{fontSize:10,background:"var(--surface)",padding:"3px 9px",borderRadius:100,border:"1px solid var(--border)"}}>{grouped[date].length}</span></div><div style={{display:"flex",flexDirection:"column",gap:10}}>{grouped[date].map((ev,i) => renderCard(ev,i,true))}</div></div>)}</div>}
@@ -1714,7 +1821,7 @@ export default function App() {
         <button className={view==="home"?"on":""} onClick={() => setView("home")}><span style={{fontSize:17}}>🔍</span><span>Explore</span></button>
         <button className={view==="pulse"?"on":""} onClick={() => setView("pulse")}><span style={{fontSize:17}}>⚡</span><span>Pulse</span></button>
         <button onClick={() => { if(!user) { setShowAuth(true); toast("Sign in first","info"); } else { setEditing(null); setShowSubmit(true); } }} style={{padding:0}}><div className="fab">+</div></button>
-        <button className={view==="friends"?"on":""} onClick={() => setView("friends")}><span style={{fontSize:17}}>👥</span><span>Friends</span></button>
+        <button className={view==="friends"?"on":""} onClick={() => setView("friends")}><span style={{fontSize:17}}>👥</span><span>Network</span></button>
         <button className={view==="profile"?"on":""} onClick={() => setView("profile")}><span style={{fontSize:17}}>🏆</span><span>Profile</span></button>
       </div>
 
@@ -1739,6 +1846,33 @@ export default function App() {
               {incog.length > 0 && <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{incog.map(eid => { const ev = events.find(e => e.id === eid); return ev ? <span key={eid} className="pill" style={{background:"var(--surface)",border:"1px solid var(--border)",cursor:"pointer"}} onClick={() => togIncog(eid)}>{ev.title} ✕</span> : null; })}</div>}
             </div>
           </div>
+        </div>
+      </>)}
+      {showOnboarding && (<>
+        <div className="overlay" onClick={() => {}}/>
+        <div className="modal" style={{maxHeight:"70vh",textAlign:"center"}}>
+          {[
+            {icon:"🌴",title:"Welcome to SIDE.SOL",desc:"Discover side events at Solana conferences. Find events, RSVP, and connect with people you want to meet."},
+            {icon:"⭐",title:"Find Your People",desc:"Add friends and notable ecosystem people. Star anyone as 'Must Meet' to track their events. See the Overlap tab to find where you'll cross paths."},
+            {icon:"📍",title:"Check In & Earn XP",desc:"At each event, the host displays a 6-letter code. Enter it to verify attendance, earn XP, and complete Side Quests."},
+            {icon:"🏆",title:"Climb the Leaderboard",desc:"Complete 11 quests, level up from Lurker to Solana God, and compete on the leaderboard. Let's go!"},
+          ].map((s,i) => i === onboardStep ? (
+            <div key={i} style={{padding:"20px 8px",animation:"fadeUp .4s ease both"}}>
+              <div style={{fontSize:56,marginBottom:16,animation:"float 2s ease-in-out infinite"}}>{s.icon}</div>
+              <h2 style={{fontSize:22,fontWeight:800,fontFamily:"var(--fd)",letterSpacing:"-.3px",marginBottom:8}}>{s.title}</h2>
+              <p style={{color:"var(--muted)",fontSize:14,lineHeight:1.6,marginBottom:24,maxWidth:300,margin:"0 auto 24px"}}>{s.desc}</p>
+              <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:20}}>
+                {[0,1,2,3].map(d => <div key={d} style={{width:8,height:8,borderRadius:"50%",background:d===onboardStep?"var(--accent)":"var(--border)",transition:"all .3s"}}/>)}
+              </div>
+              {i < 3 ? (
+                <button className="btn-glow" onClick={() => setOnboardStep(i+1)} style={{padding:"14px 40px",fontSize:16}}>Next</button>
+              ) : (
+                <button className="btn-glow" onClick={() => { setShowOnboarding(false); saveState("onboarded", true); }} style={{padding:"14px 40px",fontSize:16}}>Get Started</button>
+              )}
+              {i > 0 && <button style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",marginTop:10,fontSize:13,fontFamily:"var(--f)"}} onClick={() => setOnboardStep(i-1)}>Back</button>}
+              {i < 3 && <button style={{background:"none",border:"none",color:"var(--muted)",cursor:"pointer",marginTop:10,fontSize:12,fontFamily:"var(--f)"}} onClick={() => { setShowOnboarding(false); saveState("onboarded", true); }}>Skip</button>}
+            </div>
+          ) : null)}
         </div>
       </>)}
       {showAuth && (<>
