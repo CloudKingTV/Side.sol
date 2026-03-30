@@ -441,38 +441,29 @@ export default function App() {
   useEffect(() => { if (ready) { saveState("dark", dark); document.documentElement.style.background = dark ? "#0c0c14" : "#F5F3EE"; } }, [dark, ready]);
 
   // ── Sync user data to Supabase ──
-  const syncToSupabase = useCallback(async () => {
-    if (!user?.supaId || !hasSupabase()) return;
-    try {
-      const { error } = await supabase.from("profiles").update({
-        friends_data: friends,
-        vips_data: vips,
-        bmarks_data: bmarks,
-        rsvps_data: rsvps,
-        checkins_data: checkins,
-        incog_data: incog,
-      }).eq("id", user.supaId);
-      if (error) console.error("Sync failed:", error.message, error.details, error.hint);
-      else console.log("[sync] saved to Supabase:", { friends: friends.length, rsvps: rsvps.length });
-    } catch(e) { console.error("Sync error:", e); }
-  }, [friends, vips, bmarks, rsvps, checkins, incog, user]);
-
+  // ── Sync user data to Supabase ──
   const syncTimer = useRef(null);
   useEffect(() => {
-    if (!ready) { console.log("[sync-effect] not ready"); return; }
-    if (!user?.supaId) { console.log("[sync-effect] no supaId, user:", user?.name, user?.supaId); return; }
-    if (!hasSupabase()) { console.log("[sync-effect] no supabase"); return; }
-    console.log("[sync-effect] scheduling sync, friends:", friends.length);
+    if (!ready || !hasSupabase()) return;
+    const uid = user?.supaId;
+    if (!uid) return;
     clearTimeout(syncTimer.current);
-    syncTimer.current = setTimeout(syncToSupabase, 500);
-  }, [friends, vips, bmarks, rsvps, checkins, incog, ready, user, syncToSupabase]);
-
-  // Also sync immediately on visibility change (tab switch / app background)
-  useEffect(() => {
-    const handleVisChange = () => { if (document.visibilityState === "hidden") syncToSupabase(); };
-    document.addEventListener("visibilitychange", handleVisChange);
-    return () => document.removeEventListener("visibilitychange", handleVisChange);
-  }, [syncToSupabase]);
+    syncTimer.current = setTimeout(async () => {
+      console.log("[sync] saving to Supabase, uid:", uid, "friends:", friends.length);
+      try {
+        const { error, count } = await supabase.from("profiles").update({
+          friends_data: friends,
+          vips_data: vips,
+          bmarks_data: bmarks,
+          rsvps_data: rsvps,
+          checkins_data: checkins,
+          incog_data: incog,
+        }).eq("id", uid);
+        if (error) console.error("[sync] FAILED:", error.message, error.details, error.hint, error.code);
+        else console.log("[sync] SUCCESS, friends:", friends.length);
+      } catch(e) { console.error("[sync] EXCEPTION:", e); }
+    }, 500);
+  }, [friends, vips, bmarks, rsvps, checkins, incog, ready, user]);
 
   // ── Quest logic ──
   const completedQuests = useMemo(() => {
