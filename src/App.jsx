@@ -4,8 +4,8 @@ import { createAuth0Client } from "@auth0/auth0-spa-js";
 // ════════════════════════════════════════
 // AUTH0
 // ════════════════════════════════════════
-const AUTH0_DOMAIN = import.meta.env.VITE_AUTH0_DOMAIN || "";
-const AUTH0_CLIENT_ID = import.meta.env.VITE_AUTH0_CLIENT_ID || "";
+const AUTH0_DOMAIN = import.meta.env.VITE_AUTH0_DOMAIN || "dev-f83qlgf03joylvmx.us.auth0.com";
+const AUTH0_CLIENT_ID = import.meta.env.VITE_AUTH0_CLIENT_ID || "ynxdDhHRTNRj99M1DJVpFYcMWtmSvr9g";
 let _auth0 = null;
 async function getAuth0() {
   if (_auth0) return _auth0;
