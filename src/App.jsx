@@ -257,6 +257,7 @@ export default function App() {
   const [checkinInput, setCheckinInput] = useState("");
   const [pendingRequests, setPendingRequests] = useState([]); // event IDs user has requested to join
   const [approvedUsers, setApprovedUsers] = useState({}); // {eventId: [handles]} for host's approved list
+  const [friendRequests, setFriendRequests] = useState([]); // incoming friend requests from other users
   const [vips, setVips] = useState([]);
   const [friendsTab, setFriendsTab] = useState("people");
   const [notableFilter, setNotableFilter] = useState("All");
@@ -280,7 +281,7 @@ export default function App() {
         if (stored?.access_token) token = stored.access_token;
       } catch(e) {}
 
-      const res = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${uid}&select=friends_data,vips_data,bmarks_data,rsvps_data,checkins_data,incog_data,pending_requests_data,approved_users_data`, {
+      const res = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${uid}&select=friends_data,vips_data,bmarks_data,rsvps_data,checkins_data,incog_data,pending_requests_data,approved_users_data,friend_requests_data`, {
         headers: { "apikey": supaKey, "Authorization": `Bearer ${token}` },
       });
       if (!res.ok) return;
@@ -296,6 +297,7 @@ export default function App() {
       // Always set pending requests from Supabase (host may have approved/denied)
       setPendingRequests(data.pending_requests_data || []);
       setApprovedUsers(data.approved_users_data || {});
+      setFriendRequests(data.friend_requests_data || []);
     } catch(e) {}
   }, []);
 
@@ -634,13 +636,22 @@ export default function App() {
     if (user?.supaId && hasSupabase()) {
       db.addFriendByHandle(user.supaId, handle).then(result => {
         if (result?.found && result.profile) {
-          // Upgrade from pending to real friend
           setFriends(f => f.map(fr => fr.handle.toLowerCase() === handle.toLowerCase()
             ? { ...result.profile, is_vip: false, friend_id: result.profile.id, pending: false }
             : fr
           ));
           toast(`${result.profile.name} is on SIDE.SOL!`);
         }
+      }).catch(() => {});
+      // Send friend request notification to the other user
+      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      let token = supaKey;
+      try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
+      fetch(`${supaUrl}/rest/v1/rpc/send_friend_request`, {
+        method:"POST",
+        headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`},
+        body:JSON.stringify({sender_handle:user.handle,sender_name:user.name,sender_pfp:user.pfp||"",target_handle:handle})
       }).catch(() => {});
     }
   };
@@ -1302,6 +1313,51 @@ export default function App() {
             </div>
             <button className="btn-sm" onClick={() => { if(addFQ) { addFriend(addFQ); setAddFQ(""); } }} style={{padding:"10px 20px"}}>Add</button>
           </div>
+
+          {/* Incoming Friend Requests */}
+          {friendRequests.length > 0 && <>
+            <div style={{padding:"12px 16px",background:"linear-gradient(135deg,rgba(153,69,255,.06),rgba(20,241,149,.04))",borderRadius:16,border:"1.5px solid rgba(153,69,255,.15)",marginBottom:16}}>
+              <p className="section-label" style={{marginBottom:10}}>Friend Requests · {friendRequests.length}</p>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {friendRequests.map((req,i) => (
+                  <div key={req.handle} className="friend-row" style={{animation:`cardIn .4s cubic-bezier(.16,1,.3,1) ${i*0.06}s both`,border:"1.5px solid rgba(153,69,255,.12)"}}>
+                    <Avatar name={req.name} s={36} bg={uc(req.handle)} pfp={req.pfp}/>
+                    <div style={{flex:1}}>
+                      <p style={{fontSize:14,fontWeight:700,fontFamily:"var(--fd)"}}>{req.name}</p>
+                      <p style={{fontSize:12,color:"var(--muted)"}}>{req.handle} added you</p>
+                    </div>
+                    <button className="btn-sm" style={{background:"linear-gradient(135deg,#9945FF,#14F195)",border:"none",padding:"6px 14px",fontSize:11}} onClick={() => {
+                      addFriend(req.handle);
+                      // Clear this request via RPC
+                      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+                      const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                      let token = supaKey;
+                      try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
+                      fetch(`${supaUrl}/rest/v1/rpc/clear_friend_request`, {
+                        method:"POST",
+                        headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`},
+                        body:JSON.stringify({requester_handle:req.handle,my_handle:user?.handle})
+                      }).catch(()=>{});
+                      setFriendRequests(fr => fr.filter(r => r.handle !== req.handle));
+                    }}>+ Add Back</button>
+                    <button className="ib-sm" style={{color:"var(--muted)"}} onClick={() => {
+                      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+                      const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                      let token = supaKey;
+                      try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
+                      fetch(`${supaUrl}/rest/v1/rpc/clear_friend_request`, {
+                        method:"POST",
+                        headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`},
+                        body:JSON.stringify({requester_handle:req.handle,my_handle:user?.handle})
+                      }).catch(()=>{});
+                      setFriendRequests(fr => fr.filter(r => r.handle !== req.handle));
+                      toast("Dismissed");
+                    }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>}
 
           {/* VIP / Must Meet Section */}
           {vipFriends.length > 0 && <>
@@ -2199,7 +2255,7 @@ export default function App() {
         <button className={view==="home"?"on":""} onClick={() => setView("home")}><span style={{fontSize:17}}>🔍</span><span>Explore</span></button>
         <button className={view==="pulse"?"on":""} onClick={() => setView("pulse")}><span style={{fontSize:17}}>⚡</span><span>Pulse</span></button>
         <button onClick={() => { if(!user) { setShowAuth(true); toast("Sign in first","info"); } else { setEditing(null); setShowSubmit(true); } }} style={{padding:0}}><div className="fab">+</div></button>
-        <button className={view==="friends"?"on":""} onClick={() => setView("friends")}><span style={{fontSize:17}}>👥</span><span>Network</span></button>
+        <button className={view==="friends"?"on":""} onClick={() => setView("friends")} style={{position:"relative"}}><span style={{fontSize:17}}>👥</span><span>Network</span>{friendRequests.length > 0 && <span style={{position:"absolute",top:4,right:"calc(50% - 20px)",width:16,height:16,borderRadius:"50%",background:"#FF7043",color:"white",fontSize:9,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 6px rgba(255,112,67,.4)"}}>{friendRequests.length}</span>}</button>
         <button className={view==="profile"?"on":""} onClick={() => setView("profile")}><span style={{fontSize:17}}>🏆</span><span>Profile</span></button>
       </div>
 
