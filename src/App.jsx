@@ -953,25 +953,30 @@ export default function App() {
             </div>
           )}
 
-          {/* RSVP Attendee List (host only) */}
-          {mine && (() => {
-            const allRsvp = eventAttendees.length > 0 ? eventAttendees : (rsvps.includes(ev.id) ? [user] : []);
+          {/* RSVP Attendee List */}
+          {(() => {
+            const allRsvp = eventAttendees.length > 0 ? eventAttendees : (rsvps.includes(ev.id) && user ? [user] : []);
             return allRsvp.length > 0 ? (
               <div style={{marginTop:16,animation:"fadeUp .4s .5s both"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <p className="info-l">RSVP List · {allRsvp.length}{ev.capacity ? ` / ${ev.capacity}` : ""}</p>
+                  <p className="info-l">Attendees · {allRsvp.length}{ev.capacity ? ` / ${ev.capacity}` : ""}</p>
                 </div>
                 <div style={{background:"var(--bg)",borderRadius:16,border:"1px solid var(--border)",overflow:"hidden"}}>
-                  {allRsvp.map((u,i) => (
-                    <div key={u.handle||i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:i<allRsvp.length-1?"1px solid var(--border)":"none"}}>
-                      <Avatar name={u.name} s={24} bg={uc(u.handle||"")} pfp={u.pfp}/>
-                      <div style={{flex:1,minWidth:0}}>
-                        <p style={{fontSize:13,fontWeight:600,fontFamily:"var(--fd)"}}>{u.name}</p>
-                        {u.role && <p style={{fontSize:10,color:"var(--muted)"}}>{u.role}</p>}
+                  {allRsvp.map((u,i) => {
+                    const isMe = user && u.handle === user.handle;
+                    const isFr = friendHandles.includes(u.handle);
+                    return (
+                      <div key={u.handle||i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:i<allRsvp.length-1?"1px solid var(--border)":"none",cursor:isMe?"default":"pointer",transition:"background .15s"}} onClick={() => { if (!isMe) { setSel(null); setFriendView({...u, method:"x"}); } }}>
+                        <Avatar name={u.name} s={28} bg={uc(u.handle||"")} pfp={u.pfp}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <p style={{fontSize:13,fontWeight:600,fontFamily:"var(--fd)"}}>{u.name}{isMe && <span style={{fontSize:10,color:"var(--muted)",marginLeft:4}}>(you)</span>}</p>
+                          <p style={{fontSize:10,color:"var(--muted)"}}>{u.role || u.handle}</p>
+                        </div>
+                        {!isMe && !isFr && <button className="btn-sm" style={{background:"linear-gradient(135deg,#9945FF,#14F195)",border:"none",padding:"5px 12px",fontSize:10}} onClick={e => { e.stopPropagation(); addFriend(u.handle); }}>+ Add</button>}
+                        {isFr && <span style={{fontSize:10,color:"var(--accent)",fontWeight:600}}>👥 Friend</span>}
                       </div>
-                      <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--fm)"}}>{u.handle}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : null;
