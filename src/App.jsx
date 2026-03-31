@@ -1755,7 +1755,30 @@ export default function App() {
             </div>
           </div>}
 
-          <p className="section-label">Attending {cd?.short} ({frE.length})</p>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <p className="section-label" style={{marginBottom:0}}>Attending {cd?.short} ({frE.length})</p>
+            {user && frE.length > 0 && (() => {
+              const notJoined = frE.filter(ev => !rsvps.includes(ev.id) && !pendingRequests.includes(ev.id));
+              return notJoined.length > 0 ? (
+                <button className="btn-sm" style={{background:"linear-gradient(135deg,#9945FF,#14F195)",border:"none",padding:"6px 14px",fontSize:11}} onClick={() => {
+                  let joined = 0, requested = 0;
+                  notJoined.forEach(ev => {
+                    if (ev.rsvp) {
+                      setPendingRequests(p => [...p, ev.id]);
+                      requested++;
+                    } else {
+                      togRsvp(ev.id);
+                      joined++;
+                    }
+                  });
+                  const parts = [];
+                  if (joined) parts.push(`Joined ${joined}`);
+                  if (requested) parts.push(`Requested ${requested}`);
+                  toast(parts.join(", ") + ` event${joined+requested>1?"s":""}!`, "info");
+                }}>Join all ({notJoined.length})</button>
+              ) : <span style={{fontSize:10,color:"var(--accent)",fontWeight:600}}>✓ Going to all</span>;
+            })()}
+          </div>
           {frE.length === 0 ? <div className="empty-msg">No visible events</div> : (
             <div style={{display:"flex",flexDirection:"column",gap:7}}>
               {frE.map((ev) => {
