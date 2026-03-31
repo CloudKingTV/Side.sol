@@ -1357,12 +1357,22 @@ export default function App() {
                     const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
                     let token = supaKey;
                     try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
+                    // Clear via RPC
                     fetch(`${supaUrl}/rest/v1/rpc/clear_friend_request`, {
                       method:"POST",
                       headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`},
                       body:JSON.stringify({requester_handle:req.handle,my_handle:user?.handle})
                     }).catch(()=>{});
-                    setFriendRequests(fr => fr.filter(r => r.handle !== req.handle));
+                    // Also immediately write cleared list to profile (don't wait for debounced sync)
+                    const updated = friendRequests.filter(r => r.handle !== req.handle);
+                    setFriendRequests(updated);
+                    if (user?.supaId) {
+                      fetch(`${supaUrl}/rest/v1/profiles?id=eq.${user.supaId}`, {
+                        method:"PATCH",
+                        headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`,"Prefer":"return=minimal"},
+                        body:JSON.stringify({friend_requests_data:updated})
+                      }).catch(()=>{});
+                    }
                   };
                   return (
                   <div key={req.handle} className="friend-row" style={{animation:`cardIn .4s cubic-bezier(.16,1,.3,1) ${i*0.06}s both`,border:`1.5px solid ${alreadyFriend?"rgba(20,241,149,.2)":"rgba(153,69,255,.12)"}`}}>
