@@ -304,13 +304,7 @@ export default function App() {
   useEffect(() => {
     // Step 1: Load UI prefs + public data immediately → setReady
     setDark(loadState("dark", false));
-    // v1 launch: clear ALL old data from localStorage
-    if (!loadState("v1_launched", false)) {
-      localStorage.clear();
-      saveState("v1_launched", true);
-      saveState("onboarded", false);
-      setShowOnboarding(true);
-    }
+    if (!loadState("onboarded", false)) setShowOnboarding(true);
 
     if (hasSupabase()) {
       // Show cached user instantly while Supabase loads
@@ -374,13 +368,8 @@ export default function App() {
               body: JSON.stringify({
                 id: u.id, name: fallbackUser.name, handle: fallbackUser.handle,
                 pfp: fallbackUser.pfp, method: fallbackUser.method,
-                ...(loadState("v1_reset_done", false) ? {} : {
-                  friends_data: [], vips_data: [], bmarks_data: [],
-                  rsvps_data: [], checkins_data: [], incog_data: [],
-                }),
               }),
             });
-            saveState("v1_reset_done", true);
             // Resolve pending friends — update anyone who added this user before they signed up
             fetch(`${supaUrl}/rest/v1/rpc/resolve_pending_friends_json`, {
               method:"POST",
