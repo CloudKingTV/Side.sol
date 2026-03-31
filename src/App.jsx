@@ -41,25 +41,6 @@ const CONFS = [
   {id:"bp26",short:"Breakpoint",loc:"TBA",dates:"TBA 2026",emoji:"⚡"},
 ];
 
-const BANNER_1 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='300'%3E%3Cdefs%3E%3ClinearGradient id='a' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%239945FF'/%3E%3Cstop offset='50%25' stop-color='%23FF6B9D'/%3E%3Cstop offset='100%25' stop-color='%2314F195'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='300' fill='url(%23a)'/%3E%3Ccircle cx='650' cy='80' r='120' fill='%23ffffff10'/%3E%3Ccircle cx='150' cy='220' r='80' fill='%23ffffff08'/%3E%3Ctext x='400' y='165' text-anchor='middle' font-family='system-ui' font-weight='900' font-size='48' fill='white' opacity='.15'%3ESAGADAO%3C/text%3E%3C/svg%3E";
-const BANNER_2 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='300'%3E%3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='0' x2='1' y2='.8'%3E%3Cstop offset='0%25' stop-color='%23FF7043'/%3E%3Cstop offset='50%25' stop-color='%23F9AB00'/%3E%3Cstop offset='100%25' stop-color='%2314F195'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='300' fill='url(%23b)'/%3E%3Ccircle cx='700' cy='60' r='100' fill='%23ffffff0c'/%3E%3Ccircle cx='100' cy='240' r='140' fill='%23ffffff06'/%3E%3Ctext x='400' y='165' text-anchor='middle' font-family='system-ui' font-weight='900' font-size='36' fill='white' opacity='.12'%3EBEACH PARTY%3C/text%3E%3C/svg%3E";
-const BANNER_3 = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='300'%3E%3Cdefs%3E%3ClinearGradient id='c' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%234285F4'/%3E%3Cstop offset='60%25' stop-color='%239945FF'/%3E%3Cstop offset='100%25' stop-color='%23AB47BC'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='300' fill='url(%23c)'/%3E%3Ccircle cx='600' cy='100' r='150' fill='%23ffffff08'/%3E%3Ctext x='400' y='165' text-anchor='middle' font-family='system-ui' font-weight='800' font-size='32' fill='white' opacity='.1'%3EHACKATHON%3C/text%3E%3C/svg%3E";
-
-const SEED = [
-  {id:"s1",title:"SagaDAO House Miami",cat:"Party",date:"2026-05-04",time:"6 PM – Late",loc:"Private Villa, Miami Beach",host:"SagaDAO × CloudKing",desc:"Creator house activation. Live demos, open bar, rooftop views.",rsvp:true,luma:"https://lu.ma/sagadao-miami",conf:"acc26",att:84,by:"system",banner:BANNER_1},
-  {id:"s2",title:"DeFi Deep Dive",cat:"Workshop",date:"2026-05-05",time:"10 AM – 1 PM",loc:"Wynwood Walls Conf Room",host:"Jupiter Exchange",desc:"Hands-on DeFi strategies. Bring your laptop.",rsvp:true,luma:"https://lu.ma/defi-ws",conf:"acc26",att:42,by:"system"},
-  {id:"s3",title:"NFT Builders Meetup",cat:"Meetup",date:"2026-05-05",time:"3 – 5 PM",loc:"Gramps Bar, Wynwood",host:"Metaplex Foundation",desc:"Share builds, meet collaborators, grab a drink.",rsvp:false,luma:"",conf:"acc26",att:120,by:"system"},
-  {id:"s4",title:"Seeker Demo Day",cat:"Demo Day",date:"2026-05-06",time:"2 – 6 PM",loc:"The Lab Miami",host:"Solana Mobile",desc:"Latest Seeker apps live. Prizes for best dApp.",rsvp:true,luma:"https://lu.ma/demo",conf:"acc26",att:65,by:"system"},
-  {id:"s5",title:"Validator Dinner",cat:"Dinner",date:"2026-05-06",time:"7:30 – 10 PM",loc:"Komodo Restaurant",host:"jPool & Marinade",desc:"Intimate dinner for validators. 30 guests max.",rsvp:true,luma:"https://lu.ma/val",conf:"acc26",att:28,by:"system"},
-  {id:"s6",title:"Gaming Panel",cat:"Panel",date:"2026-05-07",time:"11 AM – 12:30 PM",loc:"Convention Center 204",host:"Star Atlas & Aurory",desc:"Future of blockchain gaming.",rsvp:false,luma:"",conf:"acc26",att:200,by:"system"},
-  {id:"s7",title:"MonkeDAO Banana Stand",cat:"Party",date:"2026-05-07",time:"4 – 8 PM",loc:"Ocean Drive Pop-up",host:"MonkeDAO",desc:"Bananas, merch drops, beach vibes.",rsvp:false,luma:"",conf:"acc26",att:300,by:"system"},
-  {id:"s8",title:"Hack Miami Pre-Party",cat:"Party",date:"2026-05-03",time:"8 PM – 2 AM",loc:"E11even Miami",host:"Superteam",desc:"Kick off week. DJs, open bar, networking.",rsvp:true,luma:"https://lu.ma/pre",conf:"acc26",att:500,by:"system"},
-  {id:"s9",title:"Guardians Brunch",cat:"Meetup",date:"2026-05-04",time:"10 AM – Noon",loc:"Mandolin, Design District",host:"Solflare",desc:"Brunch for Guardians & Ambassadors.",rsvp:true,luma:"https://lu.ma/guard",conf:"acc26",att:35,by:"system"},
-  {id:"s10",title:"cNFT Hackathon",cat:"Hackathon",date:"2026-05-05",time:"9 AM – 9 PM",loc:"WeWork Brickell",host:"Helius × Metaplex",desc:"12-hour cNFT hackathon. SOL prizes.",rsvp:true,luma:"https://lu.ma/cnft",conf:"acc26",att:60,by:"system",banner:BANNER_3},
-  {id:"s11",title:"RWA Fireside",cat:"Panel",date:"2026-05-08",time:"5 – 6:30 PM",loc:"Faena Hotel",host:"Circle & Maple Finance",desc:"Stablecoins, RWA, on-chain payments.",rsvp:true,luma:"https://lu.ma/rwa",conf:"acc26",att:90,by:"system"},
-  {id:"s12",title:"Closing Beach Party",cat:"Party",date:"2026-05-09",time:"7 PM – 3 AM",loc:"Nikki Beach Miami",host:"Solana Foundation",desc:"Official closing. Live DJ, open bar, fire dancers.",rsvp:false,luma:"",conf:"acc26",att:750,by:"system",banner:BANNER_2},
-];
-
 // ── Check-in codes (rotate every 30 min) ──
 function getCheckInCode(eventId) {
   const slot = Math.floor(Date.now() / 1800000);
@@ -83,9 +64,9 @@ const QUESTS = [
   {id:"q2",title:"Social Butterfly",desc:"Check in to 5 events",icon:"🦋",xp:150,check:(ci)=>ci.length>=5},
   {id:"q3",title:"Night Owl",desc:"Check in to 3 events after 6 PM",icon:"🦉",xp:200,check:(ci,evs)=>evs.filter(e=>ci.includes(e.id)&&e.time&&e.time.includes("PM")&&parseInt(e.time)>=6).length>=3},
   {id:"q4",title:"Builder Brain",desc:"Check in to a Workshop + Hackathon",icon:"🧠",xp:250,check:(ci,evs)=>{const c=evs.filter(e=>ci.includes(e.id)).map(e=>e.cat);return c.includes("Workshop")&&c.includes("Hackathon");}},
-  {id:"q5",title:"Day One",desc:"Check in on opening day",icon:"⚡",xp:100,check:(ci,evs)=>evs.filter(e=>ci.includes(e.id)&&e.date==="2026-05-03").length>=1},
+  {id:"q5",title:"Day One",desc:"Check in on the first day of events",icon:"⚡",xp:100,check:(ci,evs)=>{const sorted=[...evs].sort((a,b)=>a.date.localeCompare(b.date));return sorted.length>0&&evs.filter(e=>ci.includes(e.id)&&e.date===sorted[0].date).length>=1;}},
   {id:"q6",title:"Full Send",desc:"Check in on 5+ different days",icon:"🔥",xp:300,check:(ci,evs)=>new Set(evs.filter(e=>ci.includes(e.id)).map(e=>e.date)).size>=5},
-  {id:"q7",title:"Closer",desc:"Check in to the closing party",icon:"🌅",xp:100,check:(ci)=>ci.includes("s12")},
+  {id:"q7",title:"Closer",desc:"Check in to the last event of the week",icon:"🌅",xp:100,check:(ci,evs)=>{const sorted=[...evs].sort((a,b)=>b.date.localeCompare(a.date));return sorted.length>0&&ci.includes(sorted[0].id);}},
   {id:"q8",title:"Category King",desc:"Check in to 4 different types",icon:"👑",xp:350,check:(ci,evs)=>new Set(evs.filter(e=>ci.includes(e.id)).map(e=>e.cat)).size>=4},
   {id:"q9",title:"Whale",desc:"Check in to 8+ events",icon:"🐋",xp:500,check:(ci)=>ci.length>=8},
   {id:"q10",title:"Legend",desc:"Complete 8 other quests",icon:"💎",xp:1000,check:(ci,evs,cc)=>cc>=8},
@@ -243,7 +224,7 @@ function HostCodeDisplay({ ev, onClose, onCopy }) {
 export default function App() {
   const [ready, setReady] = useState(false);
   const [view, setView] = useState("home");
-  const [events, setEvents] = useState(SEED);
+  const [events, setEvents] = useState([]);
   const [user, setUser] = useState(null);
   const [bmarks, setBmarks] = useState([]);
   const [rsvps, setRsvps] = useState([]);
@@ -316,6 +297,8 @@ export default function App() {
     // Step 1: Load UI prefs + public data immediately → setReady
     setDark(loadState("dark", false));
     if (!loadState("onboarded", false)) setShowOnboarding(true);
+    // Clear any leftover seed/demo data from localStorage
+    if (!loadState("v1_clean", false)) { saveState("events", null); saveState("v1_clean", true); }
 
     if (hasSupabase()) {
       // Show cached user instantly while Supabase loads
@@ -324,11 +307,11 @@ export default function App() {
       // Load public events from Supabase
       db.fetchEvents(conf).then(evs => {
         if (evs && evs.length > 0) setEvents(evs);
-        else setEvents(loadState("events", null) || SEED);
-      }).catch(() => setEvents(loadState("events", null) || SEED));
+        else setEvents(loadState("events", null) || []);
+      }).catch(() => setEvents(loadState("events", null) || []));
     } else {
       // No Supabase: load everything from localStorage
-      setEvents(loadState("events", null) || SEED);
+      setEvents(loadState("events", null) || []);
       setUser(loadState("user", null));
       setBmarks(loadState("bmarks", []));
       setRsvps(loadState("rsvps", []));
@@ -426,7 +409,7 @@ export default function App() {
     const hash = window.location.hash;
     if (hash.startsWith("#event=")) {
       const eid = hash.slice(7);
-      const allEvs = loadState("events", null) || SEED;
+      const allEvs = loadState("events", null) || [];
       const found = allEvs.find(e => e.id === eid);
       if (found) setTimeout(() => setSel(found), 100);
     }

@@ -311,18 +311,4 @@ create trigger rsvp_att_inc after insert on rsvps
 create trigger rsvp_att_dec after delete on rsvps
   for each row execute function update_event_att();
 
--- ── SEED DATA ──
--- Insert seed events (no created_by = system events)
-insert into events (title, cat, date, time, loc, host, "desc", rsvp, luma, conf, att, banner) values
-  ('SagaDAO House Miami', 'Party', '2026-05-04', '6 PM – Late', 'Private Villa, Miami Beach', 'SagaDAO × CloudKing', 'Creator house activation. Live demos, open bar, rooftop views.', true, 'https://lu.ma/sagadao-miami', 'acc26', 84, ''),
-  ('DeFi Deep Dive', 'Workshop', '2026-05-05', '10 AM – 1 PM', 'Wynwood Walls Conf Room', 'Jupiter Exchange', 'Hands-on DeFi strategies. Bring your laptop.', true, 'https://lu.ma/defi-ws', 'acc26', 42, ''),
-  ('NFT Builders Meetup', 'Meetup', '2026-05-05', '3 – 5 PM', 'Gramps Bar, Wynwood', 'Metaplex Foundation', 'Share builds, meet collaborators, grab a drink.', false, '', 'acc26', 120, ''),
-  ('Seeker Demo Day', 'Demo Day', '2026-05-06', '2 – 6 PM', 'The Lab Miami', 'Solana Mobile', 'Latest Seeker apps live. Prizes for best dApp.', true, 'https://lu.ma/demo', 'acc26', 65, ''),
-  ('Validator Dinner', 'Dinner', '2026-05-06', '7:30 – 10 PM', 'Komodo Restaurant', 'jPool & Marinade', 'Intimate dinner for validators. 30 guests max.', true, 'https://lu.ma/val', 'acc26', 28, ''),
-  ('Gaming Panel', 'Panel', '2026-05-07', '11 AM – 12:30 PM', 'Convention Center 204', 'Star Atlas & Aurory', 'Future of blockchain gaming.', false, '', 'acc26', 200, ''),
-  ('MonkeDAO Banana Stand', 'Party', '2026-05-07', '4 – 8 PM', 'Ocean Drive Pop-up', 'MonkeDAO', 'Bananas, merch drops, beach vibes.', false, '', 'acc26', 300, ''),
-  ('Hack Miami Pre-Party', 'Party', '2026-05-03', '8 PM – 2 AM', 'E11even Miami', 'Superteam', 'Kick off week. DJs, open bar, networking.', true, 'https://lu.ma/pre', 'acc26', 500, ''),
-  ('Guardians Brunch', 'Meetup', '2026-05-04', '10 AM – Noon', 'Mandolin, Design District', 'Solflare', 'Brunch for Guardians & Ambassadors.', true, 'https://lu.ma/guard', 'acc26', 35, ''),
-  ('cNFT Hackathon', 'Hackathon', '2026-05-05', '9 AM – 9 PM', 'WeWork Brickell', 'Helius × Metaplex', '12-hour cNFT hackathon. SOL prizes.', true, 'https://lu.ma/cnft', 'acc26', 60, ''),
-  ('RWA Fireside', 'Panel', '2026-05-08', '5 – 6:30 PM', 'Faena Hotel', 'Circle & Maple Finance', 'Stablecoins, RWA, on-chain payments.', true, 'https://lu.ma/rwa', 'acc26', 90, ''),
-  ('Closing Beach Party', 'Party', '2026-05-09', '7 PM – 3 AM', 'Nikki Beach Miami', 'Solana Foundation', 'Official closing. Live DJ, open bar, fire dancers.', false, '', 'acc26', 750, '');
+-- No seed data — events are created by real users
