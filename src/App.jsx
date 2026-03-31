@@ -496,11 +496,12 @@ export default function App() {
             friends_data: friends, vips_data: vips, bmarks_data: bmarks,
             rsvps_data: rsvps, checkins_data: checkins, incog_data: incog,
             pending_requests_data: pendingRequests, approved_users_data: approvedUsers,
+            friend_requests_data: friendRequests,
           }),
         });
       } catch(e) {}
     }, 500);
-  }, [friends, vips, bmarks, rsvps, checkins, incog, pendingRequests, approvedUsers, ready, user]);
+  }, [friends, vips, bmarks, rsvps, checkins, incog, pendingRequests, approvedUsers, friendRequests, ready, user]);
 
   // ── Quest logic ──
   const completedQuests = useMemo(() => {
