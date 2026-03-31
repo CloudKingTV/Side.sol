@@ -1325,42 +1325,36 @@ export default function App() {
             <div style={{padding:"12px 16px",background:"linear-gradient(135deg,rgba(153,69,255,.06),rgba(20,241,149,.04))",borderRadius:16,border:"1.5px solid rgba(153,69,255,.15)",marginBottom:16}}>
               <p className="section-label" style={{marginBottom:10}}>Friend Requests · {friendRequests.length}</p>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {friendRequests.map((req,i) => (
-                  <div key={req.handle} className="friend-row" style={{animation:`cardIn .4s cubic-bezier(.16,1,.3,1) ${i*0.06}s both`,border:"1.5px solid rgba(153,69,255,.12)"}}>
+                {friendRequests.map((req,i) => {
+                  const alreadyFriend = friendHandles.map(h=>h.toLowerCase()).includes(req.handle?.toLowerCase());
+                  const clearRequest = () => {
+                    const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+                    const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                    let token = supaKey;
+                    try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
+                    fetch(`${supaUrl}/rest/v1/rpc/clear_friend_request`, {
+                      method:"POST",
+                      headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`},
+                      body:JSON.stringify({requester_handle:req.handle,my_handle:user?.handle})
+                    }).catch(()=>{});
+                    setFriendRequests(fr => fr.filter(r => r.handle !== req.handle));
+                  };
+                  return (
+                  <div key={req.handle} className="friend-row" style={{animation:`cardIn .4s cubic-bezier(.16,1,.3,1) ${i*0.06}s both`,border:`1.5px solid ${alreadyFriend?"rgba(20,241,149,.2)":"rgba(153,69,255,.12)"}`}}>
                     <Avatar name={req.name} s={36} bg={uc(req.handle)} pfp={req.pfp}/>
                     <div style={{flex:1}}>
                       <p style={{fontSize:14,fontWeight:700,fontFamily:"var(--fd)"}}>{req.name}</p>
-                      <p style={{fontSize:12,color:"var(--muted)"}}>{req.handle} added you</p>
+                      <p style={{fontSize:12,color:"var(--muted)"}}>{req.handle} added you{alreadyFriend ? " back" : ""}</p>
                     </div>
-                    <button className="btn-sm" style={{background:"linear-gradient(135deg,#9945FF,#14F195)",border:"none",padding:"6px 14px",fontSize:11}} onClick={() => {
-                      addFriend(req.handle);
-                      // Clear this request via RPC
-                      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
-                      const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-                      let token = supaKey;
-                      try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
-                      fetch(`${supaUrl}/rest/v1/rpc/clear_friend_request`, {
-                        method:"POST",
-                        headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`},
-                        body:JSON.stringify({requester_handle:req.handle,my_handle:user?.handle})
-                      }).catch(()=>{});
-                      setFriendRequests(fr => fr.filter(r => r.handle !== req.handle));
-                    }}>+ Add Back</button>
-                    <button className="ib-sm" style={{color:"var(--muted)"}} onClick={() => {
-                      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
-                      const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-                      let token = supaKey;
-                      try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
-                      fetch(`${supaUrl}/rest/v1/rpc/clear_friend_request`, {
-                        method:"POST",
-                        headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`},
-                        body:JSON.stringify({requester_handle:req.handle,my_handle:user?.handle})
-                      }).catch(()=>{});
-                      setFriendRequests(fr => fr.filter(r => r.handle !== req.handle));
-                      toast("Dismissed");
-                    }}>✕</button>
+                    {alreadyFriend ? (
+                      <button className="btn-sm" style={{background:"rgba(20,241,149,.1)",color:"#0A8F5A",border:"1px solid rgba(20,241,149,.2)",padding:"6px 14px",fontSize:11}} onClick={() => { clearRequest(); toast(`You and ${req.name} are now mutual friends!`); }}>👥 Mutual</button>
+                    ) : (<>
+                      <button className="btn-sm" style={{background:"linear-gradient(135deg,#9945FF,#14F195)",border:"none",padding:"6px 14px",fontSize:11}} onClick={() => { addFriend(req.handle); clearRequest(); }}>+ Add Back</button>
+                      <button className="ib-sm" style={{color:"var(--muted)"}} onClick={() => { clearRequest(); toast("Dismissed"); }}>✕</button>
+                    </>)}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </>}
