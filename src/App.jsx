@@ -578,12 +578,35 @@ export default function App() {
     toast(wasSaved ? "Removed from saved" : "Event saved", "info");
   };
 
+  // Helper: update event attendance in Supabase
+  const updateEventAtt = (eventId, delta) => {
+    if (!hasSupabase()) return;
+    const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let token = supaKey;
+    try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
+    // Get current att, then update
+    fetch(`${supaUrl}/rest/v1/events?id=eq.${eventId}&select=att`, {
+      headers:{"apikey":supaKey,"Authorization":`Bearer ${token}`}
+    }).then(r=>r.json()).then(rows=>{
+      if(rows?.[0]!=null){
+        const newAtt = Math.max(0, (rows[0].att||0) + delta);
+        fetch(`${supaUrl}/rest/v1/events?id=eq.${eventId}`, {
+          method:"PATCH",
+          headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`,"Prefer":"return=minimal"},
+          body:JSON.stringify({att:newAtt})
+        });
+      }
+    }).catch(()=>{});
+  };
+
   const togRsvp = async (id) => {
     if (rsvps.includes(id)) {
       setRsvps(r => r.filter(x => x !== id));
       setEvents(es => es.map(e => e.id === id ? { ...e, att: Math.max(0, (e.att||1) - 1) } : e));
       if (user?.supaId) db.removeRsvp(user.supaId, id);
-      toast("RSVP cancelled");
+      updateEventAtt(id, -1);
+      toast("Left event");
     } else {
       const ev = events.find(e => e.id === id);
       if (ev && ev.capacity && (ev.att||0) >= ev.capacity) { toast("Event is full", "error"); return; }
@@ -591,7 +614,8 @@ export default function App() {
       setRsvps(newRsvps);
       setEvents(es => es.map(e => e.id === id ? { ...e, att: (e.att||0) + 1 } : e));
       if (user?.supaId) db.addRsvp(user.supaId, id);
-      toast("RSVP'd! Check in at the event for XP", "info");
+      updateEventAtt(id, 1);
+      toast("Joined! Check in at the event for XP", "info");
       setTimeout(() => checkQuests(checkins, newRsvps), 300);
     }
   };
