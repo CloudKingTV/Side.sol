@@ -709,7 +709,7 @@ export default function App() {
         }
       } else {
         if (isE) { setEvents(es => es.map(e => e.id === initial.id ? {...e,...f} : e)); toast("Updated!"); }
-        else { setEvents(es => [{ ...f, id: gid(), att: 0, by: user?.handle || "anon", conf }, ...es]); toast("Submitted!"); }
+        else { setEvents(es => [{ ...f, id: gid(), att: 0, by: user?.handle || "anon", created_by: user?.supaId || null, conf }, ...es]); toast("Submitted!"); }
       }
       onClose();
     };
@@ -864,7 +864,7 @@ export default function App() {
   // ── Event Detail ──
   const renderDetail = (ev) => {
     const cat = CATS[ev.cat] || CATS.Other;
-    const mine = user && ev.by === user.handle;
+    const mine = user && (ev.created_by === user.supaId || ev.by === user.handle);
     const going = rsvps.includes(ev.id);
     const saved = bmarks.includes(ev.id);
     const verified = checkins.includes(ev.id);
@@ -1578,7 +1578,7 @@ export default function App() {
       </div>
     );
 
-    const myEvs = events.filter(e => e.by === user.handle);
+    const myEvs = events.filter(e => e.created_by === user.supaId || e.by === user.handle);
     const savedEvs = events.filter(e => bmarks.includes(e.id));
     const verEvs = events.filter(e => checkins.includes(e.id));
     const rsvpEvs = events.filter(e => rsvps.includes(e.id));
