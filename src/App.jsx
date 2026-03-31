@@ -1700,7 +1700,14 @@ export default function App() {
     const frRsvpIds = realRsvps.filter(eid => !incog.includes(eid));
     const frE = events.filter(e => frRsvpIds.includes(e.id) && e.conf === conf);
     const frCheckinCount = realCheckins.length;
-    const frXP = frCheckinCount * 120 + frRsvpIds.length * 50;
+    // Calculate XP using the real quest system (same logic as user's own XP)
+    const frCompleted = [];
+    let frCC = 0;
+    for (const q of QUESTS) {
+      if (q.id === "q10") { if (q.check(realCheckins, events, frCC, realRsvps)) frCompleted.push(q.id); }
+      else { if (q.check(realCheckins, events, frCC, realRsvps)) { frCompleted.push(q.id); frCC++; } }
+    }
+    const frXP = QUESTS.filter(q => frCompleted.includes(q.id)).reduce((s, q) => s + q.xp, 0);
     const frLevel = getLevel(frXP);
     const frNext = getNext(frXP);
     const frCats = [...new Set(events.filter(e => frRsvpIds.includes(e.id)).map(e => e.cat))];
