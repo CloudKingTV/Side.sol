@@ -1472,12 +1472,44 @@ export default function App() {
   };
 
   // ── Friend Profile ──
+  const [friendProfileData, setFriendProfileData] = useState(null);
+  useEffect(() => {
+    if (!friendView || !hasSupabase()) { setFriendProfileData(null); return; }
+    // Fetch friend's profile data (rsvps, checkins, etc.) from Supabase
+    (async () => {
+      try {
+        const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        let token = supaKey;
+        try {
+          const storageKey = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`;
+          const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
+          if (stored?.access_token) token = stored.access_token;
+        } catch(e) {}
+        // Look up friend's profile by handle
+        const handle = encodeURIComponent(friendView.handle);
+        const res = await fetch(`${supaUrl}/rest/v1/profiles?handle=eq.${handle}&select=rsvps_data,checkins_data,friends_data`, {
+          headers: { "apikey": supaKey, "Authorization": `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows?.[0]) { setFriendProfileData(rows[0]); return; }
+        }
+      } catch(e) { console.error("Friend profile fetch:", e); }
+      setFriendProfileData(null);
+    })();
+  }, [friendView]);
+
   const renderFriendProfile = (fr) => {
     const isFrFriend = friendHandles.includes(fr.handle);
-    const frRsvpIds = (FAKE_RSVPS[fr.handle]||[]).filter(eid => !incog.includes(eid));
+    // Use real Supabase data if available, fall back to FAKE_RSVPS for demo users
+    const realRsvps = friendProfileData?.rsvps_data || [];
+    const realCheckins = friendProfileData?.checkins_data || [];
+    const fakeRsvps = FAKE_RSVPS[fr.handle] || [];
+    const frRsvpIds = (realRsvps.length > 0 ? realRsvps : fakeRsvps).filter(eid => !incog.includes(eid));
     const frE = events.filter(e => frRsvpIds.includes(e.id) && e.conf === conf);
-    const frCheckins = Math.max(0, frRsvpIds.length - 1);
-    const frXP = frCheckins * 120 + frRsvpIds.length * 50;
+    const frCheckinCount = realCheckins.length > 0 ? realCheckins.length : Math.max(0, fakeRsvps.length - 1);
+    const frXP = frCheckinCount * 120 + frRsvpIds.length * 50;
     const frLevel = getLevel(frXP);
     const frNext = getNext(frXP);
     const frCats = [...new Set(events.filter(e => frRsvpIds.includes(e.id)).map(e => e.cat))];
@@ -1520,7 +1552,7 @@ export default function App() {
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:16}}>
             <div className="stat-box"><p className="stat-num" style={{color:"var(--accent)"}}>{frRsvpIds.length}</p><p className="stat-label">RSVPs</p></div>
-            <div className="stat-box"><p className="stat-num" style={{color:"var(--accent2)"}}>{frCheckins}</p><p className="stat-label">Check-ins</p></div>
+            <div className="stat-box"><p className="stat-num" style={{color:"var(--accent2)"}}>{frCheckinCount}</p><p className="stat-label">Check-ins</p></div>
             <div className="stat-box"><p className="stat-num">{frDays.length}</p><p className="stat-label">Days</p></div>
           </div>
 
