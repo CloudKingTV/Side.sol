@@ -386,7 +386,8 @@ export default function App() {
         } else if (event === "INITIAL_SESSION" && !session) {
           // No session — user is not signed in, that's fine
         } else if (event === "SIGNED_OUT") {
-          setUser(null); saveState("user", null); setRsvps([]); setCheckins([]); setBmarks([]); setFriends([]); setVips([]); setIncog([]);
+          setUser(null); saveState("user", null);
+          initialLoadDone.current = false; // prevent sync from writing empty data
         }
       });
       return () => subscription.unsubscribe();
@@ -461,6 +462,8 @@ export default function App() {
     if (!uid) return;
     // Don't sync until initial data load is complete (prevents overwriting with empty data)
     if (!initialLoadDone.current) return;
+    // Safety: never write all-empty data to Supabase (would wipe real data)
+    if (friends.length === 0 && rsvps.length === 0 && checkins.length === 0 && bmarks.length === 0 && pendingRequests.length === 0) return;
     clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(async () => {
       try {
