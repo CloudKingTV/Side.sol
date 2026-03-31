@@ -408,6 +408,8 @@ export default function App() {
           } catch(e) { console.error("[auth] profile upsert error:", e); }
           // Load user data
           try { console.log("[auth] loading user data"); await loadUserData(u.id); } catch(e) { console.error("[auth] load error:", e); }
+          initialLoadDone.current = true;
+          console.log("[auth] initial load done, sync enabled");
           // Clean up OAuth hash from URL
           if (window.location.hash.includes("access_token")) {
             window.history.replaceState(null, "", window.location.pathname);
@@ -474,10 +476,13 @@ export default function App() {
 
   // ── Sync user data to Supabase ──
   const syncTimer = useRef(null);
+  const initialLoadDone = useRef(false);
   useEffect(() => {
     if (!ready || !hasSupabase()) return;
     const uid = user?.supaId;
     if (!uid) return;
+    // Don't sync until initial data load is complete (prevents overwriting with empty data)
+    if (!initialLoadDone.current) return;
     clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(async () => {
       console.log("[sync] saving, uid:", uid, "friends:", friends.length);
