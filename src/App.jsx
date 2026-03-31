@@ -453,47 +453,19 @@ export default function App() {
   useEffect(() => { if (ready) saveState("privacy", privacy); }, [privacy, ready]);
   useEffect(() => { if (ready) { saveState("dark", dark); const bg = dark ? "#0c0c14" : "#F5F3EE"; document.documentElement.style.background = bg; document.body.style.background = bg; } }, [dark, ready]);
 
-  // ── Sync user data to Supabase ──
-  const syncTimer = useRef(null);
-  // (moved up)
-  useEffect(() => {
-    if (!ready || !hasSupabase()) return;
-    const uid = user?.supaId;
-    if (!uid) return;
-    // Don't sync until initial data load is complete (prevents overwriting with empty data)
-    if (!initialLoadDone.current) return;
-    // Safety: never write all-empty data to Supabase (would wipe real data)
-    if (friends.length === 0 && rsvps.length === 0 && checkins.length === 0 && bmarks.length === 0 && pendingRequests.length === 0) return;
-    clearTimeout(syncTimer.current);
-    syncTimer.current = setTimeout(async () => {
-      try {
-        const supaUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        let token = supaKey;
-        try {
-          const storageKey = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`;
-          const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
-          if (stored?.access_token) token = stored.access_token;
-        } catch(e) {}
-
-        const res = await fetch(`${supaUrl}/rest/v1/profiles?id=eq.${uid}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            "apikey": supaKey,
-            "Authorization": `Bearer ${token}`,
-            "Prefer": "return=minimal",
-          },
-          body: JSON.stringify({
-            friends_data: friends, vips_data: vips, bmarks_data: bmarks,
-            rsvps_data: rsvps, checkins_data: checkins, incog_data: incog,
-            pending_requests_data: pendingRequests, approved_users_data: approvedUsers,
-            friend_requests_data: friendRequests,
-          }),
-        });
-      } catch(e) {}
-    }, 500);
-  }, [friends, vips, bmarks, rsvps, checkins, incog, pendingRequests, approvedUsers, friendRequests, ready, user]);
+  // ── Sync specific data to Supabase (called on explicit user actions only) ──
+  const syncToSupabase = useCallback((fields) => {
+    if (!hasSupabase() || !user?.supaId) return;
+    const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let token = supaKey;
+    try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
+    fetch(`${supaUrl}/rest/v1/profiles?id=eq.${user.supaId}`, {
+      method: "PATCH",
+      headers: {"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`,"Prefer":"return=minimal"},
+      body: JSON.stringify(fields),
+    }).catch(()=>{});
+  }, [user]);
 
   // ── Quest logic ──
   const completedQuests = useMemo(() => {
@@ -537,14 +509,13 @@ export default function App() {
   });
   const vipsGoing = (eid) => fGoing(eid).filter(f => vips.includes(f.handle));
   const notableAtEvent = () => [];
-  const togVip = (handle) => { setVips(v => v.includes(handle) ? v.filter(h => h !== handle) : [...v, handle]); };
+  const togVip = (handle) => { const newVips = vips.includes(handle) ? vips.filter(h => h !== handle) : [...vips, handle]; setVips(newVips); syncToSupabase({ vips_data: newVips }); };
   const removeFriend = (fr) => {
-    setFriends(f => f.filter(x => x.handle !== fr.handle));
-    setVips(v => v.filter(h => h !== fr.handle));
-    if (user?.supaId && hasSupabase()) {
-      if (fr.friend_id) db.removeFriend(user.supaId, fr.friend_id);
-      if (fr.pending) db.removePendingFriend(user.supaId, fr.handle);
-    }
+    const newFriends = friends.filter(x => x.handle !== fr.handle);
+    const newVips = vips.filter(h => h !== fr.handle);
+    setFriends(newFriends);
+    setVips(newVips);
+    syncToSupabase({ friends_data: newFriends, vips_data: newVips });
     toast("Removed");
   };
 
@@ -566,8 +537,9 @@ export default function App() {
   // FIX: togBm/togIncog messages were inverted (reading state before update)
   const togBm = (id) => {
     const wasSaved = bmarks.includes(id);
-    setBmarks(b => wasSaved ? b.filter(x => x !== id) : [...b, id]);
-    if (user?.supaId) db.toggleBookmark(user.supaId, id, wasSaved);
+    const newBmarks = wasSaved ? bmarks.filter(x => x !== id) : [...bmarks, id];
+    setBmarks(newBmarks);
+    syncToSupabase({ bmarks_data: newBmarks });
     toast(wasSaved ? "Removed from saved" : "Event saved", "info");
   };
 
@@ -595,9 +567,10 @@ export default function App() {
 
   const togRsvp = async (id) => {
     if (rsvps.includes(id)) {
-      setRsvps(r => r.filter(x => x !== id));
+      const newRsvps = rsvps.filter(x => x !== id);
+      setRsvps(newRsvps);
       setEvents(es => es.map(e => e.id === id ? { ...e, att: Math.max(0, (e.att||1) - 1) } : e));
-      if (user?.supaId) db.removeRsvp(user.supaId, id);
+      syncToSupabase({ rsvps_data: newRsvps });
       updateEventAtt(id, -1);
       toast("Left event");
     } else {
@@ -606,7 +579,7 @@ export default function App() {
       const newRsvps = [...rsvps, id];
       setRsvps(newRsvps);
       setEvents(es => es.map(e => e.id === id ? { ...e, att: (e.att||0) + 1 } : e));
-      if (user?.supaId) db.addRsvp(user.supaId, id);
+      syncToSupabase({ rsvps_data: newRsvps });
       updateEventAtt(id, 1);
       toast("Joined! Check in at the event for XP", "info");
       setTimeout(() => checkQuests(checkins, newRsvps), 300);
@@ -619,7 +592,7 @@ export default function App() {
     if (checkins.includes(evId)) { toast("Already checked in", "info"); return true; }
     const newCI = [...checkins, evId];
     setCheckins(newCI);
-    if (user?.supaId) db.addCheckin(user.supaId, evId);
+    syncToSupabase({ checkins_data: newCI });
     toast("Checked in! ✓ XP unlocked");
     setTimeout(() => checkQuests(newCI, rsvps), 400);
     return true;
@@ -627,8 +600,9 @@ export default function App() {
 
   const togIncog = (id) => {
     const wasHidden = incog.includes(id);
-    setIncog(ic => wasHidden ? ic.filter(x => x !== id) : [...ic, id]);
-    if (user?.supaId) db.toggleIncognito(user.supaId, id, wasHidden);
+    const newIncog = wasHidden ? incog.filter(x => x !== id) : [...incog, id];
+    setIncog(newIncog);
+    syncToSupabase({ incog_data: newIncog });
     toast(wasHidden ? "Now visible to friends" : "Hidden from friends", "info");
   };
 
@@ -652,17 +626,22 @@ export default function App() {
 
     // Add to local state immediately as pending (instant UI feedback)
     const name = handle.slice(1);
-    setFriends(f => [...f, { handle, name, method: "x", role: "", bio: "", notable: false, tags: [], pending: true }]);
+    const newFriend = { handle, name, method: "x", role: "", bio: "", notable: false, tags: [], pending: true };
+    const newFriends = [...friends, newFriend];
+    setFriends(newFriends);
+    syncToSupabase({ friends_data: newFriends });
     toast(`Added ${name} — will link when they join!`, "info");
 
     // Try Supabase in background: look up real profile or store as pending
     if (user?.supaId && hasSupabase()) {
       db.addFriendByHandle(user.supaId, handle).then(result => {
         if (result?.found && result.profile) {
-          setFriends(f => f.map(fr => fr.handle.toLowerCase() === handle.toLowerCase()
+          const upgraded = newFriends.map(fr => fr.handle.toLowerCase() === handle.toLowerCase()
             ? { ...result.profile, is_vip: false, friend_id: result.profile.id, pending: false }
             : fr
-          ));
+          );
+          setFriends(upgraded);
+          syncToSupabase({ friends_data: upgraded });
           toast(`${result.profile.name} is on SIDE.SOL!`);
         }
       }).catch(() => {});
@@ -895,7 +874,7 @@ export default function App() {
                 </div>
               )}
               {user && !going && !ev.rsvp && <button className="qrsvp" onClick={e => { e.stopPropagation(); togRsvp(ev.id); }}>Join</button>}
-              {user && !going && ev.rsvp && !pendingRequests.includes(ev.id) && <button className="qrsvp" onClick={e => { e.stopPropagation(); setPendingRequests(p => [...p, ev.id]); toast("Request sent!", "info"); }}>Request</button>}
+              {user && !going && ev.rsvp && !pendingRequests.includes(ev.id) && <button className="qrsvp" onClick={e => { e.stopPropagation(); const np = [...pendingRequests, ev.id]; setPendingRequests(np); syncToSupabase({pending_requests_data:np}); toast("Request sent!", "info"); }}>Request</button>}
               {user && !going && ev.rsvp && pendingRequests.includes(ev.id) && <button className="qrsvp on" style={{fontSize:9,padding:"4px 10px"}} onClick={e => { e.stopPropagation(); }}>Requested</button>}
               {user && going && !verified && <button className="qrsvp on" style={{fontSize:9,padding:"4px 10px"}} onClick={e => { e.stopPropagation(); }}>Going</button>}
               <span className="card-att">👥 {ev.att}</span>
@@ -1077,7 +1056,7 @@ export default function App() {
             )}
             <div style={{display:"flex",gap:8}}>
               {!going && !ev.rsvp && <button className="btn-glow" style={{flex:1}} onClick={() => togRsvp(ev.id)}>Join</button>}
-              {!going && ev.rsvp && !pendingRequests.includes(ev.id) && <button className="btn-glow" style={{flex:1}} onClick={() => { setPendingRequests(p => [...p, ev.id]); toast("Request sent! The host will review it.", "info"); }}>🔒 Request</button>}
+              {!going && ev.rsvp && !pendingRequests.includes(ev.id) && <button className="btn-glow" style={{flex:1}} onClick={() => { const np = [...pendingRequests, ev.id]; setPendingRequests(np); syncToSupabase({pending_requests_data:np}); toast("Request sent! The host will review it.", "info"); }}>🔒 Request</button>}
               {!going && ev.rsvp && pendingRequests.includes(ev.id) && <button className="btn-outline" style={{flex:1,opacity:.7,cursor:"default"}}>Requested — Awaiting Approval</button>}
               {going && !verified && <button className="btn-outline" style={{flex:1}} onClick={() => togRsvp(ev.id)}>Leave</button>}
               {ev.luma && <a href={ev.luma} target="_blank" rel="noopener noreferrer" className="btn-outline" style={{flex:1,textDecoration:"none",textAlign:"center"}}>Luma ↗</a>}
@@ -1802,15 +1781,17 @@ export default function App() {
               return notJoined.length > 0 ? (
                 <button className="btn-sm" style={{background:"linear-gradient(135deg,#9945FF,#14F195)",border:"none",padding:"6px 14px",fontSize:11}} onClick={() => {
                   let joined = 0, requested = 0;
+                  let newPending = [...pendingRequests];
                   notJoined.forEach(ev => {
                     if (ev.rsvp) {
-                      setPendingRequests(p => [...p, ev.id]);
+                      newPending.push(ev.id);
                       requested++;
                     } else {
                       togRsvp(ev.id);
                       joined++;
                     }
                   });
+                  if (requested > 0) { setPendingRequests(newPending); syncToSupabase({pending_requests_data:newPending}); }
                   const parts = [];
                   if (joined) parts.push(`Joined ${joined}`);
                   if (requested) parts.push(`Requested ${requested}`);
