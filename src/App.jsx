@@ -1132,14 +1132,8 @@ export default function App() {
 
   const renderPulse = () => {
     const trending = [...cevs].sort((a,b) => (b.att||0) - (a.att||0)).slice(0,5);
-    // Build real activity feed from user actions
-    const myActivity = [];
-    if (user) {
-      rsvps.forEach(eid => { const ev = events.find(e => e.id === eid); if (ev) myActivity.push({u:user.name,a:"RSVP'd to",e:ev.id,t:"recent",pfp:user.pfp}); });
-      checkins.forEach(eid => { const ev = events.find(e => e.id === eid); if (ev) myActivity.push({u:user.name,a:"checked in at",e:ev.id,t:"recent",pfp:user.pfp}); });
-      completedQuests.forEach(qid => { const q = QUESTS.find(qq => qq.id === qid); if (q) myActivity.push({u:user.name,a:"completed",q:`${q.icon} ${q.title}`,t:"recent",pfp:user.pfp}); });
-    }
-    const allActivity = myActivity;
+    // Build activity feed from all users
+    const allActivity = globalActivity.filter(a => events.find(e => e.id === a.e));
     return (
       <div className="anim-in">
         <h1 className="vt" style={{marginTop:18}}>⚡ Live Pulse</h1>
@@ -1423,6 +1417,36 @@ export default function App() {
   // ── Friend Profile ──
   const [friendProfileData, setFriendProfileData] = useState(null);
   const [eventAttendees, setEventAttendees] = useState([]);
+  const [globalActivity, setGlobalActivity] = useState([]);
+
+  // Fetch activity from all users
+  useEffect(() => {
+    if (!hasSupabase()) return;
+    (async () => {
+      try {
+        const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        let token = supaKey;
+        try {
+          const storageKey = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`;
+          const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
+          if (stored?.access_token) token = stored.access_token;
+        } catch(e) {}
+        const res = await fetch(`${supaUrl}/rest/v1/profiles?select=name,handle,pfp,rsvps_data,checkins_data&or=(rsvps_data.neq.[],checkins_data.neq.[])`, {
+          headers: { "apikey": supaKey, "Authorization": `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const profiles = await res.json();
+          const feed = [];
+          profiles.forEach(p => {
+            (p.rsvps_data || []).forEach(eid => feed.push({ u: p.name, a: "RSVP'd to", e: eid, pfp: p.pfp, handle: p.handle }));
+            (p.checkins_data || []).forEach(eid => feed.push({ u: p.name, a: "checked in at", e: eid, pfp: p.pfp, handle: p.handle }));
+          });
+          setGlobalActivity(feed);
+        }
+      } catch(e) {}
+    })();
+  }, [events]);
 
   // Fetch all attendees for selected event (when host views it)
   useEffect(() => {
