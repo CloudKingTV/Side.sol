@@ -380,17 +380,34 @@ export default function App() {
           };
           setUser(fallbackUser);
           saveState("user", fallbackUser);
-          // Ensure profile row exists in Supabase (required for data sync)
+          // Ensure profile row exists + load user data (raw fetch, avoids hanging client)
           try {
-            const { error } = await supabase.from("profiles").upsert({
-              id: u.id, name: fallbackUser.name, handle: fallbackUser.handle,
-              pfp: fallbackUser.pfp, method: fallbackUser.method,
-            }, { onConflict: "id" });
-            if (error) console.error("Profile upsert failed:", error.message, error.details, error.hint);
-          } catch(e) { console.error("Profile upsert exception:", e); }
-          // Load user data from Supabase
-          try { await loadUserData(u.id); } catch(e) { console.error("Load user data error:", e); }
-          dataLoaded.current = true;
+            const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+            const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+            let token = supaKey;
+            try {
+              const storageKey = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`;
+              const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
+              if (stored?.access_token) token = stored.access_token;
+            } catch(e) {}
+            // Upsert profile via REST
+            await fetch(`${supaUrl}/rest/v1/profiles`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "apikey": supaKey,
+                "Authorization": `Bearer ${token}`,
+                "Prefer": "resolution=merge-duplicates,return=minimal",
+              },
+              body: JSON.stringify({
+                id: u.id, name: fallbackUser.name, handle: fallbackUser.handle,
+                pfp: fallbackUser.pfp, method: fallbackUser.method,
+              }),
+            });
+            console.log("[auth] profile upserted");
+          } catch(e) { console.error("[auth] profile upsert error:", e); }
+          // Load user data
+          try { console.log("[auth] loading user data"); await loadUserData(u.id); } catch(e) { console.error("[auth] load error:", e); }
           // Clean up OAuth hash from URL
           if (window.location.hash.includes("access_token")) {
             window.history.replaceState(null, "", window.location.pathname);
