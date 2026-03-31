@@ -1433,32 +1433,41 @@ export default function App() {
           const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
           if (stored?.access_token) token = stored.access_token;
         } catch(e) {}
-        const res = await fetch(`${supaUrl}/rest/v1/profiles?select=name,handle,pfp,rsvps_data,checkins_data,created_at&or=(rsvps_data.neq.[],checkins_data.neq.[])`, {
+        // Fetch events with creators for activity feed (accurate timestamps)
+        const evRes = await fetch(`${supaUrl}/rest/v1/events?select=id,title,created_at,created_by,att,profiles(name,handle,pfp)&created_by=not.is.null&order=created_at.desc&limit=50`, {
           headers: { "apikey": supaKey, "Authorization": `Bearer ${token}` },
         });
-        // Also fetch events with creators for "created an event" activity
-        const evRes = await fetch(`${supaUrl}/rest/v1/events?select=id,title,created_at,created_by,profiles(name,handle,pfp)&created_by=not.is.null&order=created_at.desc&limit=50`, {
+        // Fetch all profiles for RSVP activity
+        const profRes = await fetch(`${supaUrl}/rest/v1/profiles?select=name,handle,pfp,rsvps_data`, {
           headers: { "apikey": supaKey, "Authorization": `Bearer ${token}` },
         });
-        if (res.ok) {
-          const profiles = await res.json();
-          const feed = [];
-          profiles.forEach(p => {
-            const ts = p.created_at;
-            (p.rsvps_data || []).forEach(eid => feed.push({ u: p.name, a: "RSVP'd to", e: eid, pfp: p.pfp, handle: p.handle, ts }));
-            (p.checkins_data || []).forEach(eid => feed.push({ u: p.name, a: "checked in at", e: eid, pfp: p.pfp, handle: p.handle, ts }));
+        const feed = [];
+        if (evRes.ok) {
+          const evRows = await evRes.json();
+          evRows.forEach(ev => {
+            if (ev.profiles) {
+              feed.push({ u: ev.profiles.name, a: "created", e: ev.id, pfp: ev.profiles.pfp, handle: ev.profiles.handle, ts: ev.created_at });
+            }
+            // Build RSVP activity from profiles that have this event in rsvps_data
+            // Use event's created_at as approximate time (RSVPs happen after creation)
           });
-          if (evRes.ok) {
-            const evRows = await evRes.json();
-            evRows.forEach(ev => {
-              if (ev.profiles) {
-                feed.push({ u: ev.profiles.name, a: "created", e: ev.id, pfp: ev.profiles.pfp, handle: ev.profiles.handle, ts: ev.created_at });
-              }
+          // Add RSVP activity — use event created_at + small offset per profile
+          if (profRes.ok) {
+            const profiles = await profRes.json();
+            profiles.forEach(p => {
+              (p.rsvps_data || []).forEach(eid => {
+                const ev = evRows.find(e => e.id === eid);
+                if (ev) {
+                  // Use event creation time + 1min offset so RSVPs appear after "created"
+                  const rsvpTs = new Date(new Date(ev.created_at).getTime() + 60000).toISOString();
+                  feed.push({ u: p.name, a: "RSVP'd to", e: eid, pfp: p.pfp, handle: p.handle, ts: rsvpTs });
+                }
+              });
             });
           }
-          feed.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
-          setGlobalActivity(feed);
         }
+        feed.sort((a, b) => new Date(b.ts || 0) - new Date(a.ts || 0));
+        setGlobalActivity(feed);
       } catch(e) {}
     })();
   }, [events]);
