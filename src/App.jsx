@@ -94,35 +94,7 @@ const LEVELS=[{n:"Lurker",xp:0},{n:"Attendee",xp:100},{n:"Regular",xp:300},{n:"B
 const getLevel=(xp)=>{let l=LEVELS[0];for(const lv of LEVELS)if(xp>=lv.xp)l=lv;return l;};
 const getNext=(xp)=>{for(const lv of LEVELS)if(xp<lv.xp)return lv;return null;};
 
-const LEADERBOARD=[{name:"sol_maxi",xp:2800,handle:"@sol_maxi"},{name:"defi_sarah",xp:2100,handle:"@defi_sarah"},{name:"nft_collector",xp:1750,handle:"@nft_coll"},{name:"validator_vic",xp:1400,handle:"@val_vic"},{name:"mobile_dev",xp:1100,handle:"@mob_dev"},{name:"dao_king",xp:850,handle:"@dao_king"}];
-const FAKE_USERS=[
-  {handle:"@SolanaLegend",name:"Sol Legend",method:"x",role:"Community OG",bio:"Day-one Solana maxi. Builder & collector.",notable:false,tags:["Community"]},
-  {handle:"@DefiDegen",name:"DeFi Dan",method:"x",role:"DeFi Researcher, Jupiter",bio:"Yield farming & MEV. DMs open.",notable:false,tags:["DeFi"]},
-  {handle:"@NFTQueen",name:"Aria",method:"x",role:"Creator & Collector",bio:"Metaplex council. Art meets blockchain.",notable:false,tags:["NFT","Community"]},
-  {handle:"@ValidatorVic",name:"Vic",method:"x",role:"Validator Operator",bio:"Running validators since epoch 1.",notable:false,tags:["Infra"]},
-  {handle:"@MobileMaxi",name:"Max",method:"x",role:"Mobile Dev, Solana Mobile",bio:"Building the Seeker dApp ecosystem.",notable:false,tags:["Mobile"]},
-  {handle:"@aeyakovenko",name:"Anatoly Yakovenko",method:"x",role:"Co-founder, Solana Labs",bio:"Building Solana.",notable:true,tags:["Founders"]},
-  {handle:"@rajgokal",name:"Raj Gokal",method:"x",role:"Co-founder, Solana Labs",bio:"Solana co-founder. Culture & community.",notable:true,tags:["Founders"]},
-  {handle:"@maboroshi_mert",name:"Mert",method:"x",role:"CEO, Helius",bio:"RPC infra & DAS. Building Helius.",notable:true,tags:["Founders","Infra"]},
-  {handle:"@armaniferrante",name:"Armani Ferrante",method:"x",role:"Founder, Coral / Backpack",bio:"Anchor framework. Building Backpack.",notable:true,tags:["Founders","Dev"]},
-  {handle:"@weremeow",name:"weremeow",method:"x",role:"Founder, Jupiter",bio:"Jupiter Exchange. DeFi for everyone.",notable:true,tags:["Founders","DeFi"]},
-  {handle:"@vibhu",name:"Vibhu Norby",method:"x",role:"CEO, DRiP",bio:"Compressed NFT distribution at scale.",notable:true,tags:["Founders","NFT"]},
-  {handle:"@Austin_Federa",name:"Austin Federa",method:"x",role:"Head of Strategy, Solana Foundation",bio:"Ecosystem growth & strategy.",notable:true,tags:["Founders"]},
-  {handle:"@MonkeDAO",name:"MonkeDAO",method:"x",role:"Community DAO",bio:"The OG Solana DAO. Bananas.",notable:true,tags:["Community","NFT"]},
-  {handle:"@SuperteamDAO",name:"Superteam",method:"x",role:"Global Solana Community",bio:"Helping Solana win worldwide.",notable:true,tags:["Community"]},
-  {handle:"@0xMert_",name:"Chase Barker",method:"x",role:"Dev Rel, Helius",bio:"Tutorials, docs, developer love.",notable:false,tags:["Dev","Infra"]},
-];
-const FAKE_RSVPS={
-  "@SolanaLegend":["s1","s8","s12"],"@DefiDegen":["s2","s5","s8"],"@NFTQueen":["s3","s7","s1"],
-  "@ValidatorVic":["s5","s6","s11"],"@MobileMaxi":["s4","s9","s1"],
-  "@aeyakovenko":["s6","s8","s12","s2"],"@rajgokal":["s8","s12","s5","s9"],
-  "@maboroshi_mert":["s2","s10","s6","s11"],"@armaniferrante":["s10","s2","s3"],
-  "@weremeow":["s2","s5","s8","s11"],"@vibhu":["s3","s7","s1"],
-  "@Austin_Federa":["s6","s8","s9","s12"],"@MonkeDAO":["s7","s8","s12"],
-  "@SuperteamDAO":["s8","s3","s6","s10"],"@0xMert_":["s2","s10","s4"],
-};
 const NOTABLE_TAGS=["All","Founders","DeFi","Dev","Infra","NFT","Community","Mobile"];
-const PULSE=[{u:"sol_maxi",a:"checked in at",e:"s1",t:"2m"},{u:"defi_sarah",a:"completed",q:"Builder Brain 🧠",t:"5m"},{u:"nft_collector",a:"checked in at",e:"s7",t:"8m"},{u:"validator_vic",a:"leveled up to",q:"OG ⚡",t:"12m"},{u:"mobile_dev",a:"checked in at",e:"s4",t:"15m"},{u:"dao_king",a:"completed",q:"Night Owl 🦉",t:"18m"}];
 
 // ════════════════════════════════════════
 // STORAGE (Supabase with localStorage fallback)
@@ -212,15 +184,21 @@ function Toasts({ toasts }) {
 // ════════════════════════════════════════
 // PULSE TICKER (self-contained, no parent re-render)
 // ════════════════════════════════════════
-function PulseTicker({ events }) {
+function PulseTicker({ activity, events }) {
   const [idx, setIdx] = useState(0);
-  useEffect(() => { const i = setInterval(() => setIdx(p => p + 1), 4000); return () => clearInterval(i); }, []);
-  const ci = idx % PULSE.length;
+  useEffect(() => { if (activity.length > 0) { const i = setInterval(() => setIdx(p => p + 1), 4000); return () => clearInterval(i); } }, [activity.length]);
+  if (activity.length === 0) return (
+    <div className="pulse-ticker">
+      <div className="pulse-dot"/><span className="pulse-live">LIVE</span>
+      <div style={{flex:1,fontSize:12,color:"rgba(255,255,255,.5)"}}>Waiting for activity...</div>
+    </div>
+  );
+  const ci = idx % activity.length;
   return (
     <div className="pulse-ticker">
       <div className="pulse-dot"/><span className="pulse-live">LIVE</span>
       <div style={{flex:1,overflow:"hidden"}}>
-        {PULSE.map((p,i) => (
+        {activity.map((p,i) => (
           <div key={i} style={{display:i===ci?"flex":"none",animation:i===ci?"fadeSlide .4s ease":"none",alignItems:"center",gap:3,fontSize:12,whiteSpace:"nowrap"}}>
             <strong>{p.u}</strong>&nbsp;{p.a}&nbsp;<em style={{color:"#14F195"}}>{p.e ? events.find(e=>e.id===p.e)?.title : p.q}</em>&nbsp;<span className="pulse-time">{p.t}</span>
           </div>
@@ -553,11 +531,10 @@ export default function App() {
   const friendHandles = friends.map(f => f.handle);
   const fGoing = (eid) => friends.filter(f => {
     const realData = friendRsvpMap[f.handle];
-    const rsvpList = realData?.rsvps?.length ? realData.rsvps : (FAKE_RSVPS[f.handle] || []);
-    return rsvpList.includes(eid);
+    return realData?.rsvps?.includes(eid) || false;
   });
   const vipsGoing = (eid) => fGoing(eid).filter(f => vips.includes(f.handle));
-  const notableAtEvent = (eid) => FAKE_USERS.filter(u => u.notable && (FAKE_RSVPS[u.handle]||[]).includes(eid) && !friendHandles.includes(u.handle));
+  const notableAtEvent = () => [];
   const togVip = (handle) => { setVips(v => v.includes(handle) ? v.filter(h => h !== handle) : [...v, handle]); };
   const removeFriend = (fr) => {
     setFriends(f => f.filter(x => x.handle !== fr.handle));
@@ -646,15 +623,6 @@ export default function App() {
   const addFriend = (h) => {
     const handle = h.startsWith("@") ? h : `@${h}`;
     if (friendHandles.map(x=>x.toLowerCase()).includes(handle.toLowerCase())) { toast("Already friends", "info"); return; }
-
-    // Check known demo users first
-    const known = FAKE_USERS.find(f => f.handle.toLowerCase() === handle.toLowerCase());
-    if (known) {
-      setFriends(f => [...f, { ...known, pending: false }]);
-      if (user?.supaId && hasSupabase()) db.addFriendByHandle(user.supaId, handle).catch(() => {});
-      toast(`Added ${known.name}!`);
-      return;
-    }
 
     // Add to local state immediately as pending (instant UI feedback)
     const name = handle.slice(1);
@@ -983,9 +951,9 @@ export default function App() {
 
           {/* RSVP Attendee List (host only) */}
           {mine && (() => {
-            const rsvpUsers = FAKE_USERS.filter(u => (FAKE_RSVPS[u.handle]||[]).includes(ev.id));
             const realRsvp = user && rsvps.includes(ev.id) ? [user] : [];
-            const allRsvp = [...realRsvp, ...rsvpUsers];
+            const friendsRsvpd = friends.filter(f => friendRsvpMap[f.handle]?.rsvps?.includes(ev.id));
+            const allRsvp = [...realRsvp, ...friendsRsvpd];
             return allRsvp.length > 0 ? (
               <div style={{marginTop:16,animation:"fadeUp .4s .5s both"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -1028,7 +996,7 @@ export default function App() {
 
   // ── Quests View ──
   const renderQuests = () => {
-    const lb = [...LEADERBOARD, ...(user ? [{name:user.name,xp:totalXP,handle:user.handle}] : [])].sort((a,b) => b.xp - a.xp);
+    const lb = user ? [{name:user.name,xp:totalXP,handle:user.handle,pfp:user.pfp}] : [];
     const myRank = user ? lb.findIndex(l => l.handle === user.handle) + 1 : null;
     const progress = nextLvl ? Math.min(100,((totalXP-level.xp)/(nextLvl.xp-level.xp))*100) : 100;
 
@@ -1181,12 +1149,12 @@ export default function App() {
       checkins.forEach(eid => { const ev = events.find(e => e.id === eid); if (ev) myActivity.push({u:user.name,a:"checked in at",e:ev.id,t:"recent",pfp:user.pfp}); });
       completedQuests.forEach(qid => { const q = QUESTS.find(qq => qq.id === qid); if (q) myActivity.push({u:user.name,a:"completed",q:`${q.icon} ${q.title}`,t:"recent",pfp:user.pfp}); });
     }
-    const allActivity = [...myActivity.slice(0,4), ...PULSE];
+    const allActivity = myActivity;
     return (
       <div className="anim-in">
         <h1 className="vt" style={{marginTop:18}}>⚡ Live Pulse</h1>
         <p className="vs">Real-time conference activity</p>
-        <PulseTicker events={events}/>
+        <PulseTicker activity={allActivity} events={events}/>
 
         {/* Your Stats */}
         {user && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,margin:"16px 0"}}>
@@ -1237,12 +1205,9 @@ export default function App() {
   // ── Friends View ──
   const renderFriends = () => {
     // Smart suggestions: people at events you're going to
-    const suggestedByOverlap = FAKE_USERS
-      .filter(u => !friendHandles.includes(u.handle))
-      .map(u => { const shared = (FAKE_RSVPS[u.handle]||[]).filter(eid => rsvps.includes(eid)).length; return {...u, shared}; })
-      .filter(s => s.shared > 0)
-      .sort((a,b) => b.shared - a.shared);
-    const otherSuggested = FAKE_USERS.filter(u => !friendHandles.includes(u.handle) && !suggestedByOverlap.find(s => s.handle === u.handle));
+    // Suggestions are now based on real Supabase data only
+    const suggestedByOverlap = [];
+    const otherSuggested = [];
 
     // Overlap: my RSVPs matched with friends
     const overlapData = rsvps
@@ -1253,13 +1218,13 @@ export default function App() {
     // VIP friends with their next event
     const vipFriends = friends.filter(f => vips.includes(f.handle)).map(f => {
       const realData = friendRsvpMap[f.handle];
-      const rsvpList = realData?.rsvps?.length ? realData.rsvps : (FAKE_RSVPS[f.handle]||[]);
+      const rsvpList = realData?.rsvps || [];
       const theirEvs = rsvpList.map(eid => events.find(e => e.id === eid && e.conf === conf)).filter(Boolean).sort((a,b) => a.date.localeCompare(b.date));
       return {...f, nextEv: theirEvs[0] || null, evCount: theirEvs.length};
     });
 
-    // Notable people for directory
-    const notableList = FAKE_USERS.filter(u => u.notable && (notableFilter === "All" || (u.tags||[]).includes(notableFilter)));
+    // Notable people — from real Supabase profiles (coming soon)
+    const notableList = [];
 
     return (
       <div className="anim-in">
@@ -1318,7 +1283,7 @@ export default function App() {
             <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
               {friends.map((fr,i) => {
                 const realData = friendRsvpMap[fr.handle];
-                const frRsvpList = realData?.rsvps?.length ? realData.rsvps : (FAKE_RSVPS[fr.handle]||[]);
+                const frRsvpList = realData?.rsvps || [];
                 const frE = events.filter(e => frRsvpList.includes(e.id));
                 const isVip = vips.includes(fr.handle);
                 return (
@@ -1440,7 +1405,7 @@ export default function App() {
             {notableList.map((u,i) => {
               const isFriend = friendHandles.includes(u.handle);
               const isVip = vips.includes(u.handle);
-              const theirEvs = (FAKE_RSVPS[u.handle]||[]).filter(eid => events.find(e => e.id === eid && e.conf === conf));
+              const theirEvs = (friendRsvpMap[u.handle]?.rsvps || []).filter(eid => events.find(e => e.id === eid && e.conf === conf));
               return (
                 <div key={u.handle} className="friend-row" onClick={() => setFriendView(u)} style={{animation:`cardIn .4s cubic-bezier(.16,1,.3,1) ${i*0.06}s both`}}>
                   <Avatar name={u.name} s={40} bg={uc(u.handle)}/>
@@ -1471,7 +1436,7 @@ export default function App() {
   // Fetch all friends' RSVP data in bulk
   useEffect(() => {
     if (!hasSupabase() || friends.length === 0) return;
-    const realFriends = friends.filter(f => !FAKE_RSVPS[f.handle]);
+    const realFriends = friends.filter(f => !friendRsvpMap[f.handle]);
     if (realFriends.length === 0) return;
     (async () => {
       try {
@@ -1525,13 +1490,11 @@ export default function App() {
 
   const renderFriendProfile = (fr) => {
     const isFrFriend = friendHandles.includes(fr.handle);
-    // Use real Supabase data if available, fall back to FAKE_RSVPS for demo users
     const realRsvps = friendProfileData?.rsvps_data || [];
     const realCheckins = friendProfileData?.checkins_data || [];
-    const fakeRsvps = FAKE_RSVPS[fr.handle] || [];
-    const frRsvpIds = (realRsvps.length > 0 ? realRsvps : fakeRsvps).filter(eid => !incog.includes(eid));
+    const frRsvpIds = realRsvps.filter(eid => !incog.includes(eid));
     const frE = events.filter(e => frRsvpIds.includes(e.id) && e.conf === conf);
-    const frCheckinCount = realCheckins.length > 0 ? realCheckins.length : Math.max(0, fakeRsvps.length - 1);
+    const frCheckinCount = realCheckins.length;
     const frXP = frCheckinCount * 120 + frRsvpIds.length * 50;
     const frLevel = getLevel(frXP);
     const frNext = getNext(frXP);
