@@ -990,31 +990,21 @@ export default function App() {
                       <p style={{fontSize:10,color:"var(--muted)"}}>{u.handle}</p>
                     </div>
                     <button className="btn-sm" style={{background:"linear-gradient(135deg,#14F195,#0A8F5A)",padding:"5px 14px",fontSize:11}} onClick={() => {
-                      // Approve: add to their RSVPs, remove from their pending
-                      // We'll update their profile directly
                       const supaUrl = import.meta.env.VITE_SUPABASE_URL;
                       const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
                       let token = supaKey;
                       try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
-                      // Get their current data
-                      fetch(`${supaUrl}/rest/v1/profiles?handle=eq.${encodeURIComponent(u.handle)}&select=rsvps_data,pending_requests_data`, {
-                        headers: {"apikey":supaKey,"Authorization":`Bearer ${token}`}
-                      }).then(r=>r.json()).then(rows=>{
-                        if(rows?.[0]){
-                          const curr = rows[0];
-                          const newRsvps = [...(curr.rsvps_data||[]), ev.id];
-                          const newPending = (curr.pending_requests_data||[]).filter(id=>id!==ev.id);
-                          fetch(`${supaUrl}/rest/v1/profiles?handle=eq.${encodeURIComponent(u.handle)}`, {
-                            method:"PATCH",
-                            headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`,"Prefer":"return=minimal"},
-                            body:JSON.stringify({rsvps_data:newRsvps,pending_requests_data:newPending})
-                          }).then(()=>{
-                            setEventPendingUsers(p=>p.filter(x=>x.handle!==u.handle));
-                            setEventAttendees(a=>[...a,u]);
-                            setEvents(es=>es.map(e=>e.id===ev.id?{...e,att:(e.att||0)+1}:e));
-                            toast(`${u.name} approved!`);
-                          });
-                        }
+                      fetch(`${supaUrl}/rest/v1/rpc/approve_event_request`, {
+                        method:"POST",
+                        headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`},
+                        body:JSON.stringify({requester_handle:u.handle,event_id:ev.id})
+                      }).then(r => {
+                        if(r.ok) {
+                          setEventPendingUsers(p=>p.filter(x=>x.handle!==u.handle));
+                          setEventAttendees(a=>[...a,u]);
+                          setEvents(es=>es.map(e=>e.id===ev.id?{...e,att:(e.att||0)+1}:e));
+                          toast(`${u.name} approved!`);
+                        } else { toast("Approve failed","error"); }
                       });
                     }}>✓ Approve</button>
                     <button className="ib-sm" style={{color:"#BF360C"}} onClick={() => {
@@ -1022,20 +1012,15 @@ export default function App() {
                       const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
                       let token = supaKey;
                       try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
-                      fetch(`${supaUrl}/rest/v1/profiles?handle=eq.${encodeURIComponent(u.handle)}&select=pending_requests_data`, {
-                        headers:{"apikey":supaKey,"Authorization":`Bearer ${token}`}
-                      }).then(r=>r.json()).then(rows=>{
-                        if(rows?.[0]){
-                          const newPending = (rows[0].pending_requests_data||[]).filter(id=>id!==ev.id);
-                          fetch(`${supaUrl}/rest/v1/profiles?handle=eq.${encodeURIComponent(u.handle)}`, {
-                            method:"PATCH",
-                            headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`,"Prefer":"return=minimal"},
-                            body:JSON.stringify({pending_requests_data:newPending})
-                          }).then(()=>{
-                            setEventPendingUsers(p=>p.filter(x=>x.handle!==u.handle));
-                            toast(`${u.name} denied`);
-                          });
-                        }
+                      fetch(`${supaUrl}/rest/v1/rpc/deny_event_request`, {
+                        method:"POST",
+                        headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`},
+                        body:JSON.stringify({requester_handle:u.handle,event_id:ev.id})
+                      }).then(r => {
+                        if(r.ok) {
+                          setEventPendingUsers(p=>p.filter(x=>x.handle!==u.handle));
+                          toast(`${u.name} denied`);
+                        } else { toast("Deny failed","error"); }
                       });
                     }}>✕</button>
                   </div>
