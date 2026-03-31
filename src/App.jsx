@@ -255,6 +255,8 @@ export default function App() {
   const [showCheckin, setShowCheckin] = useState(null);
   const [showHostCode, setShowHostCode] = useState(null);
   const [checkinInput, setCheckinInput] = useState("");
+  const [pendingRequests, setPendingRequests] = useState([]); // event IDs user has requested to join
+  const [approvedUsers, setApprovedUsers] = useState({}); // {eventId: [handles]} for host's approved list
   const [vips, setVips] = useState([]);
   const [friendsTab, setFriendsTab] = useState("people");
   const [notableFilter, setNotableFilter] = useState("All");
@@ -444,6 +446,8 @@ export default function App() {
   useEffect(() => { if (ready) saveState("checkins", checkins); }, [checkins, ready]);
   useEffect(() => { if (ready) saveState("friends", friends); }, [friends, ready]);
   useEffect(() => { if (ready) saveState("incog", incog); }, [incog, ready]);
+  useEffect(() => { if (ready) saveState("pendingRequests", pendingRequests); }, [pendingRequests, ready]);
+  useEffect(() => { if (ready) saveState("approvedUsers", approvedUsers); }, [approvedUsers, ready]);
   useEffect(() => { if (ready) saveState("vips", vips); }, [vips, ready]);
   useEffect(() => { if (ready) saveState("privacy", privacy); }, [privacy, ready]);
   useEffect(() => { if (ready) { saveState("dark", dark); document.documentElement.style.background = dark ? "#0c0c14" : "#F5F3EE"; } }, [dark, ready]);
@@ -480,11 +484,12 @@ export default function App() {
           body: JSON.stringify({
             friends_data: friends, vips_data: vips, bmarks_data: bmarks,
             rsvps_data: rsvps, checkins_data: checkins, incog_data: incog,
+            pending_requests_data: pendingRequests, approved_users_data: approvedUsers,
           }),
         });
       } catch(e) {}
     }, 500);
-  }, [friends, vips, bmarks, rsvps, checkins, incog, ready, user]);
+  }, [friends, vips, bmarks, rsvps, checkins, incog, pendingRequests, approvedUsers, ready, user]);
 
   // ── Quest logic ──
   const completedQuests = useMemo(() => {
@@ -752,7 +757,7 @@ export default function App() {
           <div className="r2">
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div onClick={()=>sF({...f,rsvp:!f.rsvp})} className="tog" data-on={f.rsvp}><div className="tog-t" style={{transform:f.rsvp?"translateX(22px)":"translateX(0)"}}/></div>
-              <span style={{fontSize:13,fontWeight:600}}>RSVP Required</span>
+              <span style={{fontSize:13,fontWeight:600}}>Approval Required</span>
             </div>
             <Fld l="Max capacity"><input className="field" type="number" min="0" placeholder="0 = unlimited" value={f.capacity||""} onChange={e=>sF({...f,capacity:parseInt(e.target.value)||0})}/></Fld>
           </div>
@@ -842,7 +847,7 @@ export default function App() {
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginTop:compact?4:2}}>
             <div className="card-mc">
               <span className="card-m">📅 {fd(ev.date)}{ev.time ? ` · ${ev.time}` : ""}</span>
-              <span className="card-m">📍 {ev.loc}</span>
+              <span className="card-m">📍 {ev.rsvp && !rsvps.includes(ev.id) ? "Approval required" : ev.loc}</span>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}}>
               {vg.length > 0 && <span className="vip-badge">⭐ {vg[0].name}{vg.length > 1 ? ` +${vg.length-1}` : ""}</span>}
@@ -852,7 +857,9 @@ export default function App() {
                   <span style={{fontSize:10.5,fontWeight:600,color:"var(--accent)"}}>{fg.length <= 2 ? fg.map(f=>f.name.split(" ")[0]).join(" & ") : `${fg.length} friends`}</span>
                 </div>
               )}
-              {user && !going && <button className="qrsvp" onClick={e => { e.stopPropagation(); togRsvp(ev.id); }}>RSVP</button>}
+              {user && !going && !ev.rsvp && <button className="qrsvp" onClick={e => { e.stopPropagation(); togRsvp(ev.id); }}>RSVP</button>}
+              {user && !going && ev.rsvp && !pendingRequests.includes(ev.id) && <button className="qrsvp" onClick={e => { e.stopPropagation(); setPendingRequests(p => [...p, ev.id]); toast("Request sent!", "info"); }}>🔒</button>}
+              {user && !going && ev.rsvp && pendingRequests.includes(ev.id) && <button className="qrsvp on" onClick={e => { e.stopPropagation(); }}>⏳</button>}
               {user && going && !verified && <button className="qrsvp on" onClick={e => { e.stopPropagation(); }}>✓</button>}
               <span className="card-att">👥 {ev.att}</span>
             </div>
@@ -899,14 +906,15 @@ export default function App() {
             <div style={{display:"flex",gap:5,marginTop:10,justifyContent:"center",flexWrap:"wrap",animation:"fadeUp .4s .25s both"}}>
               {verified && <span className="pill verified-pill" style={{animation:"pulseRing 1.5s ease .5s"}}>✓ Verified Attendance</span>}
               {!verified && going && <span className="pill going-pill">RSVP'd — check in for XP</span>}
-              {ev.rsvp && !going && <span className="pill rsvp-pill">RSVP Required</span>}
+              {ev.rsvp && !going && <span className="pill rsvp-pill">🔒 Approval Required</span>}
+              {ev.rsvp && going && <span className="pill" style={{background:"rgba(20,241,149,.1)",color:"#0A8F5A",border:"1px solid rgba(20,241,149,.18)"}}>✓ Approved</span>}
             </div>
             <hr className="dashed"/>
             <div className="r2" style={{marginBottom:8,animation:"fadeUp .4s .3s both"}}>
               <div className="info-cell"><span className="info-l">Date</span><span className="info-v">{fd(ev.date)}</span></div>
               <div className="info-cell"><span className="info-l">Time</span><span className="info-v">{ev.time || "TBA"}</span></div>
             </div>
-            <div className="info-cell" style={{marginBottom:12,animation:"fadeUp .4s .35s both"}}><span className="info-l">Location</span><span className="info-v">{ev.loc}</span></div>
+            <div className="info-cell" style={{marginBottom:12,animation:"fadeUp .4s .35s both"}}><span className="info-l">Location</span><span className="info-v">{ev.rsvp && !going && !mine ? "🔒 Visible after approval" : ev.loc}</span></div>
             {ev.announcement && <div style={{padding:"10px 14px",background:"rgba(249,171,0,.08)",border:"1.5px solid rgba(249,171,0,.2)",borderRadius:14,marginBottom:12,textAlign:"left",animation:"fadeUp .4s .38s both",display:"flex",gap:8,alignItems:"flex-start"}}>
               <span style={{fontSize:14,flexShrink:0}}>📢</span>
               <div><p style={{fontSize:10,fontWeight:700,color:"#A66D00",textTransform:"uppercase",letterSpacing:".5px",marginBottom:2,fontFamily:"var(--fm)"}}>Announcement</p><p style={{fontSize:13,color:"var(--text)",lineHeight:1.5}}>{ev.announcement}</p></div>
@@ -966,6 +974,73 @@ export default function App() {
             ) : null;
           })()}
 
+          {/* Pending Approval Requests (host only) */}
+          {mine && ev.rsvp && eventPendingUsers.length > 0 && (
+            <div style={{marginTop:16,animation:"fadeUp .4s .52s both"}}>
+              <p className="info-l" style={{marginBottom:8}}>Pending Requests · {eventPendingUsers.length}</p>
+              <div style={{background:"var(--bg)",borderRadius:16,border:"1.5px solid rgba(249,171,0,.2)",overflow:"hidden"}}>
+                {eventPendingUsers.map((u,i) => (
+                  <div key={u.handle||i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderBottom:i<eventPendingUsers.length-1?"1px solid var(--border)":"none"}}>
+                    <Avatar name={u.name} s={28} bg={uc(u.handle||"")} pfp={u.pfp}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <p style={{fontSize:13,fontWeight:600,fontFamily:"var(--fd)"}}>{u.name}</p>
+                      <p style={{fontSize:10,color:"var(--muted)"}}>{u.handle}</p>
+                    </div>
+                    <button className="btn-sm" style={{background:"linear-gradient(135deg,#14F195,#0A8F5A)",padding:"5px 14px",fontSize:11}} onClick={() => {
+                      // Approve: add to their RSVPs, remove from their pending
+                      // We'll update their profile directly
+                      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+                      const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                      let token = supaKey;
+                      try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
+                      // Get their current data
+                      fetch(`${supaUrl}/rest/v1/profiles?handle=eq.${encodeURIComponent(u.handle)}&select=rsvps_data,pending_requests_data`, {
+                        headers: {"apikey":supaKey,"Authorization":`Bearer ${token}`}
+                      }).then(r=>r.json()).then(rows=>{
+                        if(rows?.[0]){
+                          const curr = rows[0];
+                          const newRsvps = [...(curr.rsvps_data||[]), ev.id];
+                          const newPending = (curr.pending_requests_data||[]).filter(id=>id!==ev.id);
+                          fetch(`${supaUrl}/rest/v1/profiles?handle=eq.${encodeURIComponent(u.handle)}`, {
+                            method:"PATCH",
+                            headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`,"Prefer":"return=minimal"},
+                            body:JSON.stringify({rsvps_data:newRsvps,pending_requests_data:newPending})
+                          }).then(()=>{
+                            setEventPendingUsers(p=>p.filter(x=>x.handle!==u.handle));
+                            setEventAttendees(a=>[...a,u]);
+                            setEvents(es=>es.map(e=>e.id===ev.id?{...e,att:(e.att||0)+1}:e));
+                            toast(`${u.name} approved!`);
+                          });
+                        }
+                      });
+                    }}>✓ Approve</button>
+                    <button className="ib-sm" style={{color:"#BF360C"}} onClick={() => {
+                      const supaUrl = import.meta.env.VITE_SUPABASE_URL;
+                      const supaKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+                      let token = supaKey;
+                      try { const sk = `sb-${new URL(supaUrl).hostname.split('.')[0]}-auth-token`; const st = JSON.parse(localStorage.getItem(sk)||"{}"); if(st?.access_token) token=st.access_token; } catch(e){}
+                      fetch(`${supaUrl}/rest/v1/profiles?handle=eq.${encodeURIComponent(u.handle)}&select=pending_requests_data`, {
+                        headers:{"apikey":supaKey,"Authorization":`Bearer ${token}`}
+                      }).then(r=>r.json()).then(rows=>{
+                        if(rows?.[0]){
+                          const newPending = (rows[0].pending_requests_data||[]).filter(id=>id!==ev.id);
+                          fetch(`${supaUrl}/rest/v1/profiles?handle=eq.${encodeURIComponent(u.handle)}`, {
+                            method:"PATCH",
+                            headers:{"Content-Type":"application/json","apikey":supaKey,"Authorization":`Bearer ${token}`,"Prefer":"return=minimal"},
+                            body:JSON.stringify({pending_requests_data:newPending})
+                          }).then(()=>{
+                            setEventPendingUsers(p=>p.filter(x=>x.handle!==u.handle));
+                            toast(`${u.name} denied`);
+                          });
+                        }
+                      });
+                    }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:16,animation:"fadeUp .4s .55s both"}}>
             {user && going && !verified && (
               <button className="btn-checkin" onClick={() => { setSel(null); setShowCheckin(ev); }}>📍 Check In — Earn XP</button>
@@ -974,7 +1049,9 @@ export default function App() {
               <div className="verified-banner" style={{animation:"pulseRing 1.5s ease"}}>✓ Attendance Verified — XP Earned</div>
             )}
             <div style={{display:"flex",gap:8}}>
-              {!going && <button className="btn-glow" style={{flex:1}} onClick={() => togRsvp(ev.id)}>RSVP</button>}
+              {!going && !ev.rsvp && <button className="btn-glow" style={{flex:1}} onClick={() => togRsvp(ev.id)}>RSVP</button>}
+              {!going && ev.rsvp && !pendingRequests.includes(ev.id) && <button className="btn-glow" style={{flex:1}} onClick={() => { setPendingRequests(p => [...p, ev.id]); toast("Request sent! The host will review it.", "info"); }}>🔒 Request to Join</button>}
+              {!going && ev.rsvp && pendingRequests.includes(ev.id) && <button className="btn-outline" style={{flex:1,opacity:.7,cursor:"default"}}>⏳ Pending Approval</button>}
               {going && !verified && <button className="btn-outline" style={{flex:1}} onClick={() => togRsvp(ev.id)}>Cancel RSVP</button>}
               {ev.luma && <a href={ev.luma} target="_blank" rel="noopener noreferrer" className="btn-outline" style={{flex:1,textDecoration:"none",textAlign:"center"}}>Luma ↗</a>}
             </div>
@@ -1418,6 +1495,7 @@ export default function App() {
   // ── Friend Profile ──
   const [friendProfileData, setFriendProfileData] = useState(null);
   const [eventAttendees, setEventAttendees] = useState([]);
+  const [eventPendingUsers, setEventPendingUsers] = useState([]);
   const [globalActivity, setGlobalActivity] = useState([]);
 
   // Fetch activity from all users
@@ -1493,7 +1571,15 @@ export default function App() {
           const rows = await res.json();
           setEventAttendees(rows || []);
         }
-      } catch(e) { setEventAttendees([]); }
+        // Also fetch users who have pending requests for this event
+        const pendRes = await fetch(`${supaUrl}/rest/v1/profiles?pending_requests_data=cs.[${eid}]&select=name,handle,pfp,role`, {
+          headers: { "apikey": supaKey, "Authorization": `Bearer ${token}` },
+        });
+        if (pendRes.ok) {
+          const pendRows = await pendRes.json();
+          setEventPendingUsers(pendRows || []);
+        }
+      } catch(e) { setEventAttendees([]); setEventPendingUsers([]); }
     })();
   }, [sel]);
   const [friendRsvpMap, setFriendRsvpMap] = useState({});
