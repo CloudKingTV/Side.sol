@@ -695,8 +695,15 @@ export default function App() {
   );
 
   // ── Submit Modal ──
+  const formDraftRef = useRef(null);
   const SubmitModal = ({ initial, onClose }) => {
-    const [f, sF] = useState(initial || { title:"", cat:"Meetup", date:"", time:"", loc:"", host:"", desc:"", rsvp:false, luma:"", conf, banner:"", capacity:0, announcement:"" });
+    const [f, sF] = useState(() => {
+      if (initial) return initial;
+      if (formDraftRef.current) return formDraftRef.current;
+      return { title:"", cat:"Meetup", date:"", time:"", loc:"", host:"", desc:"", rsvp:false, luma:"", conf, banner:"", capacity:0, announcement:"", bannerPos:50 };
+    });
+    // Save draft on every change so it survives re-renders / tab switches
+    useEffect(() => { if (!initial) formDraftRef.current = f; }, [f, initial]);
     const [errs, sE] = useState({});
     const isE = !!initial?.id;
     const validate = () => {
@@ -733,21 +740,28 @@ export default function App() {
         if (isE) { setEvents(es => es.map(e => e.id === initial.id ? {...e,...f} : e)); toast("Updated!"); }
         else { setEvents(es => [{ ...f, id: gid(), att: 0, by: user?.handle || "anon", created_by: user?.supaId || null, conf }, ...es]); toast("Submitted!"); }
       }
+      formDraftRef.current = null;
       onClose();
     };
+    const handleClose = () => { formDraftRef.current = null; onClose(); };
     return (<>
-      <div className="overlay" onClick={onClose}/>
+      <div className="overlay" onClick={handleClose}/>
       <div className="modal">
-        <div className="mh"><h2 className="mt">{isE ? "Edit" : "Submit Side Event"}</h2><button className="ib" onClick={onClose}>✕</button></div>
+        <div className="mh"><h2 className="mt">{isE ? "Edit" : "Submit Side Event"}</h2><button className="ib" onClick={handleClose}>✕</button></div>
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <Fld l="Banner image" err={null}>
             <label style={{position:"relative",borderRadius:16,overflow:"hidden",border:`2px dashed ${f.banner?"var(--accent2)":"var(--border)"}`,background:f.banner?"transparent":"var(--bg)",height:f.banner?120:72,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .25s"}}>
               {f.banner ? (<>
-                <img src={f.banner} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                <img src={f.banner} alt="" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:`center ${f.bannerPos||50}%`}}/>
                 <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent 40%,rgba(0,0,0,.4))",display:"flex",alignItems:"flex-end",justifyContent:"space-between",padding:10}}>
-                  <span style={{color:"white",fontSize:11,fontWeight:700}}>Banner uploaded</span>
+                  <span style={{color:"white",fontSize:11,fontWeight:700}}>Drag to reposition ↕</span>
                   <button onClick={e => { e.preventDefault(); e.stopPropagation(); sF({...f, banner:""}); }} style={{background:"rgba(0,0,0,.5)",color:"white",border:"none",borderRadius:100,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Remove</button>
                 </div>
+                <input type="range" min="0" max="100" value={f.bannerPos||50}
+                  onClick={e => e.preventDefault()}
+                  onChange={e => { e.preventDefault(); e.stopPropagation(); sF(prev => ({...prev, bannerPos:parseInt(e.target.value)})); }}
+                  style={{position:"absolute",left:10,right:10,bottom:36,height:4,appearance:"auto",opacity:.7,zIndex:5,cursor:"pointer"}}
+                />
               </>) : (
                 <div style={{textAlign:"center",color:"var(--muted)",padding:12}}>
                   <div style={{fontSize:24,marginBottom:4}}>🖼</div>
@@ -833,7 +847,7 @@ export default function App() {
       <div key={ev.id} className="ev-card" style={{background:cbg(cat),borderLeft:`4px solid ${cat.ac}`,animation:`cardIn .5s cubic-bezier(.16,1,.3,1) ${i*0.06}s both`,padding:hasBanner&&!compact?0:undefined,overflow:"hidden"}} onClick={() => setSel(ev)}>
         {hasBanner && !compact && (
           <div style={{position:"relative",height:82}}>
-            <img src={ev.banner} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+            <img src={ev.banner} alt="" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:`center ${ev.bannerPos||50}%`}}/>
             <div style={{position:"absolute",inset:0,background:`linear-gradient(180deg,${cbg(cat)}20 0%,${cbg(cat)}88 55%,${cbg(cat)} 100%)`}}/>
             <div style={{position:"absolute",top:10,left:14,right:14,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
               <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
@@ -911,7 +925,7 @@ export default function App() {
           <div className="ticket" style={{padding:ev.banner?0:undefined,overflow:ev.banner?"hidden":undefined}}>
             {ev.banner && (
               <div style={{position:"relative",height:110}}>
-                <img src={ev.banner} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                <img src={ev.banner} alt="" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:`center ${ev.bannerPos||50}%`}}/>
                 <div style={{position:"absolute",inset:0,background:`linear-gradient(180deg,transparent 20%,${cbg(cat)}cc 65%,${cbg(cat)} 100%)`}}/>
               </div>
             )}
