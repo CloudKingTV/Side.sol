@@ -1077,7 +1077,13 @@ export default function App() {
               {!going && !ev.luma?.includes("luma") && ev.rsvp && !pendingRequests.includes(ev.id) && <button className="btn-glow" style={{flex:1}} onClick={() => { const np = [...pendingRequests, ev.id]; setPendingRequests(np); syncToSupabase({pending_requests_data:np}); toast("Request sent! The host will review it.", "info"); }}>🔒 Request</button>}
               {!going && !ev.luma?.includes("luma") && ev.rsvp && pendingRequests.includes(ev.id) && <button className="btn-outline" style={{flex:1,opacity:.7,cursor:"default"}}>Requested — Awaiting Approval</button>}
               {!going && ev.luma?.includes("luma") && <>
-                <button className="luma-checkout--button btn-glow" type="button" data-luma-action="checkout" data-luma-event-id={ev.lumaEventId || ""} onClick={() => setTimeout(reloadLumaScript, 50)} style={{flex:1,cursor:"pointer"}}>Register on Luma</button>
+                <button className="btn-glow" type="button" style={{flex:1,cursor:"pointer"}} onClick={() => {
+                  // Find the working card button and click it, or create one at body level
+                  const existing = document.querySelector(`.luma-checkout--button[data-luma-event-id="${ev.lumaEventId}"]`);
+                  if (existing && existing !== document.activeElement) { existing.click(); return; }
+                  // Fallback: open Luma in new tab
+                  window.open(ev.luma, "_blank");
+                }}>Register on Luma</button>
                 <button className="btn-outline" style={{flex:1}} onClick={() => {
                   togRsvp(ev.id);
                   toast("Marked as going!", "info");
