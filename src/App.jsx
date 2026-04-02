@@ -1058,12 +1058,8 @@ export default function App() {
               {!going && !ev.luma?.includes("luma") && ev.rsvp && pendingRequests.includes(ev.id) && <button className="btn-outline" style={{flex:1,opacity:.7,cursor:"default"}}>Requested — Awaiting Approval</button>}
               {!going && ev.luma?.includes("luma") && <>
                 <button className="btn-glow" style={{flex:1}} onClick={() => {
-                  const url = ev.luma;
-                  const w = Math.min(480, window.innerWidth - 40);
-                  const h = Math.min(700, window.innerHeight - 60);
-                  const left = (window.innerWidth - w) / 2;
-                  const top = (window.innerHeight - h) / 2;
-                  window.open(url, "luma_register", `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no,location=no`);
+                  const el = document.getElementById("luma-frame-" + ev.id);
+                  if (el) el.style.display = el.style.display === "none" ? "block" : "none";
                 }}>Register on Luma</button>
                 <button className="btn-outline" style={{flex:1}} onClick={() => {
                   togRsvp(ev.id);
@@ -1073,6 +1069,20 @@ export default function App() {
               {going && !verified && <button className="btn-outline" style={{flex:1}} onClick={() => togRsvp(ev.id)}>Leave</button>}
               {ev.luma && !ev.luma.includes("luma") && <a href={ev.luma} target="_blank" rel="noopener noreferrer" className="btn-outline" style={{flex:1,textDecoration:"none",textAlign:"center"}}>RSVP ↗</a>}
             </div>
+            {ev.luma?.includes("luma") && (
+              <div id={"luma-frame-" + ev.id} style={{display:"none",marginTop:12,animation:"fadeUp .3s ease both"}}>
+                <div style={{borderRadius:18,overflow:"hidden",border:"1px solid var(--border)",boxShadow:"var(--sh-md)",background:"white"}}>
+                  <iframe
+                    src={ev.luma}
+                    style={{width:"100%",height:560,border:"none",background:"white"}}
+                    allow="payment; clipboard-write"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"
+                  />
+                </div>
+                <p style={{fontSize:11,color:"var(--muted)",textAlign:"center",marginTop:8}}>Complete registration above, then tap "I've registered"</p>
+              </div>
+            )}
             {mine && <button className="btn-sm" style={{width:"100%",padding:"12px",borderRadius:14,fontSize:13}} onClick={() => { setSel(null); setShowHostCode(ev); }}>🔑 Host Dashboard — Show Check-in Code</button>}
           </div>
         </div>
