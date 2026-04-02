@@ -680,9 +680,9 @@ export default function App() {
   const formDraftRef = useRef(null);
   const SubmitModal = ({ initial, onClose }) => {
     const [f, sF] = useState(() => {
-      if (initial) return initial;
+      if (initial) return { ...initial, isLuma: !!(initial.lumaEventId || initial.luma?.includes("luma")) };
       if (formDraftRef.current) return formDraftRef.current;
-      return { title:"", cat:"Meetup", date:"", time:"", loc:"", host:"", desc:"", rsvp:false, luma:"", conf, banner:"", capacity:0, announcement:"", bannerPos:50 };
+      return { title:"", cat:"Meetup", date:"", time:"", loc:"", host:"", desc:"", rsvp:false, luma:"", conf, banner:"", capacity:0, announcement:"", bannerPos:50, isLuma:false, lumaEventId:"" };
     });
     // Save draft on every change so it survives re-renders / tab switches
     useEffect(() => { if (!initial) formDraftRef.current = f; }, [f, initial]);
@@ -695,6 +695,8 @@ export default function App() {
       if (!f.loc.trim()) e.loc = "Required";
       if (!f.host.trim()) e.host = "Required";
       if (f.luma && !f.luma.startsWith("http")) e.luma = "Must be a URL";
+      if (f.isLuma && !f.luma?.includes("luma")) e.luma = "Enter a valid Luma link";
+      if (f.isLuma && !f.lumaEventId?.startsWith("evt-")) e.lumaEventId = "Must start with evt-";
       sE(e);
       return !Object.keys(e).length;
     };
@@ -765,13 +767,24 @@ export default function App() {
           </div>
           <Fld l="Location" req err={errs.loc}><input className="field" placeholder="Venue, address" value={f.loc} onChange={e=>sF({...f,loc:e.target.value})}/></Fld>
           <Fld l="Description"><textarea className="field" rows={3} placeholder="What's it about?" value={f.desc} onChange={e=>sF({...f,desc:e.target.value})}/></Fld>
-          <Fld l="RSVP / Luma link" err={errs.luma}><input className="field" placeholder="https://lu.ma/..." value={f.luma} onChange={e=>sF({...f,luma:e.target.value})}/></Fld>
-          {f.luma?.includes("luma") && <Fld l="Luma Event ID (optional, for in-app checkout)"><input className="field" placeholder="evt-AbCdEfGh..." value={f.lumaEventId||""} onChange={e=>sF({...f,lumaEventId:e.target.value})}/></Fld>}
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0"}}>
+            <div onClick={()=>sF({...f,isLuma:!f.isLuma,luma:f.isLuma?"":"https://luma.com/",lumaEventId:f.isLuma?"":f.lumaEventId})} className="tog" data-on={!!f.isLuma}><div className="tog-t" style={{transform:f.isLuma?"translateX(22px)":"translateX(0)"}}/></div>
+            <div><span style={{fontSize:13,fontWeight:600}}>Luma Event</span><p style={{fontSize:11,color:"var(--muted)",marginTop:1}}>Registration handled via Luma</p></div>
+          </div>
+          {f.isLuma ? <>
+            <Fld l="Luma link" err={errs.luma}><input className="field" placeholder="https://luma.com/your-event" value={f.luma} onChange={e=>sF({...f,luma:e.target.value})}/></Fld>
+            <Fld l="Luma Event ID" err={errs.lumaEventId}>
+              <input className="field" placeholder="evt-AbCdEfGh..." value={f.lumaEventId||""} onChange={e=>sF({...f,lumaEventId:e.target.value})}/>
+              <p style={{fontSize:10,color:"var(--muted)",marginTop:4,lineHeight:1.4}}>Find this in the page source of your Luma event (search for "evt-"). Required for in-app registration.</p>
+            </Fld>
+          </> : <>
+            <Fld l="RSVP link (optional)" err={errs.luma}><input className="field" placeholder="https://..." value={f.luma} onChange={e=>sF({...f,luma:e.target.value})}/></Fld>
+          </>}
           <div className="r2">
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
+            {!f.isLuma && <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div onClick={()=>sF({...f,rsvp:!f.rsvp})} className="tog" data-on={f.rsvp}><div className="tog-t" style={{transform:f.rsvp?"translateX(22px)":"translateX(0)"}}/></div>
               <span style={{fontSize:13,fontWeight:600}}>Approval Required</span>
-            </div>
+            </div>}
             <Fld l="Max capacity"><input className="field" type="number" min="0" placeholder="0 = unlimited" value={f.capacity||""} onChange={e=>sF({...f,capacity:parseInt(e.target.value)||0})}/></Fld>
           </div>
           {isE && <Fld l="Announcement (visible to attendees)"><input className="field" placeholder="e.g. Venue changed! Now at..." value={f.announcement||""} onChange={e=>sF({...f,announcement:e.target.value})}/></Fld>}
